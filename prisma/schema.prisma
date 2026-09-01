@@ -1,0 +1,47 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String         @id @default(cuid())
+  username      String         @unique // studentId for students or username for teachers
+  studentId     String?        // รหัสประจำตัวนักศึกษา เช่น 67209010001
+  nickname      String?        // ชื่อเล่น
+  role          String         @default("STUDENT") // STUDENT, TEACHER
+  createdAt     DateTime       @default(now())
+  conversations Conversation[]
+}
+
+model Conversation {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title           String    @default("นิทานเรื่องใหม่")
+  currentStep     Int       @default(1) // 1: Concept, 2: Characters, 3: Plot/Moral, 4: Scratch
+  theme           String?   // e.g. สัตว์แสนรู้, ผจญภัยอวกาศ, นิทานอีสปยุคใหม่
+  characters      String?   // JSON Array of character objects [{name, role, sprite, description}]
+  backdrops       String?   // JSON Array of backdrop objects [{name, scene, mood}]
+  moralLesson     String?   // ข้อคิดคติสอนใจ
+  plotSummary     String?   // สรุปเนื้อเรื่องย่อ
+  scratchPlan     String?   // JSON Array of Scratch blocks and logic [{sprite, event, action, blocks}]
+  status          String    @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  messages        Message[]
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String       // user, assistant, system
+  content        String
+  scratchBlocks  String?      // Optional JSON Array of Scratch blocks attached to this message
+  step           Int?         // The step when this message was sent
+  createdAt      DateTime     @default(now())
+}

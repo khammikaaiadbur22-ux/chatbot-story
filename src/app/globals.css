@@ -1,26 +1,145 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #FCF9F2;
+    --foreground: #2C221E;
+    --parchment: #FFFDF9;
+    --parchment-soft: #F7EFE3;
+    --border-warm: #EADBC8;
+    
+    /* Scratch Color System */
+    --scratch-orange: #FF8C1A;
+    --scratch-amber: #FFAB19;
+    --scratch-blue: #4C97FF;
+    --scratch-purple: #9966FF;
+    --scratch-green: #0FBD8C;
+    --scratch-yellow: #FFBF00;
+    --scratch-pink: #FF6680;
+    --scratch-cyan: #4CBFE6;
   }
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Prompt', 'Kanit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-image: 
+    radial-gradient(#e6d8c3 0.75px, transparent 0.75px), 
+    radial-gradient(#f0e4d2 0.75px, #FCF9F2 0.75px);
+  background-size: 30px 30px;
+  background-position: 0 0, 15px 15px;
+  min-height: 100vh;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #F4EADB;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #D9C3A5;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #C4A987;
+}
+
+/* Scratch Block Styles */
+.scratch-block {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #FFFFFF;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2), 0 3px 6px rgba(0, 0, 0, 0.08);
+  user-select: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  position: relative;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+}
+
+.scratch-block:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25), 0 5px 10px rgba(0, 0, 0, 0.12);
+}
+
+.scratch-block-events {
+  background-color: #FFBF00;
+  border: 1px solid #E6AC00;
+}
+
+.scratch-block-motion {
+  background-color: #4C97FF;
+  border: 1px solid #3373CC;
+}
+
+.scratch-block-looks {
+  background-color: #9966FF;
+  border: 1px solid #774DCB;
+}
+
+.scratch-block-sound {
+  background-color: #FF6680;
+  border: 1px solid #E64D67;
+}
+
+.scratch-block-control {
+  background-color: #FFAB19;
+  border: 1px solid #E69100;
+}
+
+.scratch-block-sensing {
+  background-color: #4CBFE6;
+  border: 1px solid #2E8EB0;
+}
+
+.scratch-block-operators {
+  background-color: #59C059;
+  border: 1px solid #389438;
+}
+
+.scratch-block-variables {
+  background-color: #FF8C1A;
+  border: 1px solid #DB6F00;
+}
+
+/* Warm Parchment Card Style */
+.storybook-card {
+  background: #FFFDF9;
+  border: 1.5px solid #EADBC8;
+  border-radius: 1.25rem;
+  box-shadow: 0 8px 24px -4px rgba(74, 51, 25, 0.06), 0 2px 6px -1px rgba(74, 51, 25, 0.04);
+}
+
+.storybook-card-warm {
+  background: linear-gradient(135deg, #FFFDF9 0%, #FFF5E6 100%);
+  border: 1.5px solid #F5DEBF;
+  box-shadow: 0 10px 30px -5px rgba(255, 140, 26, 0.1);
+}
+
+/* Animations */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+@keyframes gentle-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.03); }
+}
+
+.animate-gentle-pulse {
+  animation: gentle-pulse 2.5s ease-in-out infinite;
 }
