@@ -754,9 +754,10 @@ confirmed_story_direction: ${storedProfile.confirmed_story_direction || false}
           const result = await generateText({
             model: googleAI(modelName),
             system: SYSTEM_PROMPT,
-            messages: fullMessages,
+            messages: fullMessages as any,
             temperature,
             maxOutputTokens: maxTokens,
+            maxRetries: 1,
           });
 
           if (result.text) {

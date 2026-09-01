@@ -113,23 +113,26 @@ export default function StoryChatPage() {
     scrollToBottom();
   }, [messages, loading]);
 
-  // Story generation progress timer
+  // Story generation progress timer (tab-inactive safe)
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isWritingStory) {
+      const startTime = Date.now();
+      const totalDuration = 20000; // 20 seconds
       setStoryProgress(0);
       setStoryTimeLeft(20);
       
       interval = setInterval(() => {
-        setStoryProgress((prev) => {
-          if (prev >= 95) return 95;
-          return prev + 5;
-        });
-        setStoryTimeLeft((prev) => {
-          if (prev <= 1) return 1;
-          return prev - 1;
-        });
-      }, 1000);
+        const elapsed = Date.now() - startTime;
+        let newProgress = Math.floor((elapsed / totalDuration) * 100);
+        if (newProgress >= 95) newProgress = 95;
+        
+        let newTimeLeft = 20 - Math.floor(elapsed / 1000);
+        if (newTimeLeft <= 1) newTimeLeft = 1;
+
+        setStoryProgress(newProgress);
+        setStoryTimeLeft(newTimeLeft);
+      }, 500);
     }
     return () => {
       if (interval) clearInterval(interval);
