@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { StoryStepper, STORY_STEPS } from "@/components/StoryStepper";
-import { QuickPrompts } from "@/components/QuickPrompts";
 import {
   StoryBlueprintPanel,
   StoryData,
@@ -297,7 +296,7 @@ export default function StoryChatPage() {
     const isConfirmed = confirmKeywords.some((k) => text.toLowerCase().includes(k));
 
     if (
-      (currentStep >= 2 && isConfirmed) ||
+      (currentStep >= 3 && isConfirmed) ||
       profile?.confirmed_story_direction === true ||
       (storyData as any).conversationState === "FULL_STORY" ||
       ((storyData as any).conversationState === "STORY_CONFIRMATION" && isConfirmed)
@@ -502,7 +501,12 @@ export default function StoryChatPage() {
           <div className="flex-1">
             <StoryStepper
               currentStep={currentStep}
-              onStepClick={(s) => setCurrentStep(s)}
+              onStepClick={(s) => {
+                // อนุญาตให้กดย้อนกลับได้ แต่ห้ามกดข้ามขั้นไปข้างหน้า
+                if (s <= currentStep) {
+                  setCurrentStep(s);
+                }
+              }}
             />
           </div>
 
@@ -739,35 +743,8 @@ export default function StoryChatPage() {
                   )}
                 </div>
 
-                {/* Quick Prompts & Action Area */}
-                <div className="px-3 pt-2 bg-white border-t border-[#EADBC8] space-y-2">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <div className="flex-1 min-w-[200px]">
-                      <QuickPrompts
-                        step={currentStep}
-                        hasIntroduced={Boolean(studentNickname)}
-                        onSelectPrompt={(p) => {
-                          setInputText(p);
-                          inputRef.current?.focus();
-                        }}
-                        disabled={loading || isWritingStory}
-                      />
-                    </div>
+                {/* Action Area Removed */}
 
-                    {currentStep >= 2 && (
-                      <button
-                        type="button"
-                        onClick={() => handleGenerateStory()}
-                        disabled={loading || isWritingStory}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-[#FF8C1A] to-[#FFAB19] hover:from-[#E6780C] hover:to-[#E69100] text-white font-bold text-xs rounded-xl shadow-xs transition-all hover:scale-105 active:scale-95 disabled:opacity-50 shrink-0"
-                        title="เริ่มกระบวนการสร้างนิทานฉบับเต็ม"
-                      >
-                        <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                        <span>สร้างนิทานเลย ✨</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
 
                 {/* Input Bar Area */}
                 <div className="p-2.5 sm:p-3.5 bg-white shrink-0">

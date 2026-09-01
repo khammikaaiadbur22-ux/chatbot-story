@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
 
+export const maxDuration = 60;
+
 function getApiKeys(): string[] {
   const keys: string[] = [];
   if (process.env.GEMINI_API_KEY_1) keys.push(process.env.GEMINI_API_KEY_1);
