@@ -196,19 +196,17 @@ export default function StoryChatPage() {
     const profile = storyData.userProfile;
     let isStoryPhase = false;
     
-    const confirmKeywords = ["โอเค", "ได้เลย", "ok", "ตกลง", "เอาเลย", "ดีเลย", "ลุย", "ดี", "ใช่", "ยืนยัน", "สร้างเลย"];
-    const isConfirmed = confirmKeywords.some(k => text.toLowerCase().includes(k));
+    const confirmKeywords = [
+      "โอเค", "ได้เลย", "ok", "ตกลง", "เอาเลย", "ดีเลย", "ลุย", "ดี", "ใช่", "ยืนยัน", "สร้างเลย", "แต่งเลย", "เริ่มเลย", "พร้อมแล้ว", "เขียนเลย"
+    ];
+    const isConfirmed = confirmKeywords.some((k) => text.toLowerCase().includes(k));
 
     if (
+      (currentStep >= 2 && isConfirmed) ||
       profile?.confirmed_story_direction === true ||
-      (storyData as any).conversationState === "FULL_STORY"
+      (storyData as any).conversationState === "FULL_STORY" ||
+      ((storyData as any).conversationState === "STORY_CONFIRMATION" && isConfirmed)
     ) {
-      isStoryPhase = true;
-    } else if ((storyData as any).conversationState === "STORY_CONFIRMATION" && isConfirmed) {
-      isStoryPhase = true;
-    }
-
-    if (isStoryPhase) {
       setIsWritingStory(true);
     }
 
@@ -468,201 +466,210 @@ export default function StoryChatPage() {
         </div>
 
         {/* Dynamic Responsive Content Area */}
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 min-h-0 overflow-hidden">
-          {/* Chat Container */}
-          <div
-            className={`flex flex-col bg-[#FFFDF9] border border-[#EADBC8] rounded-3xl shadow-sm overflow-hidden h-full ${
-              mobileTab === "chat" ? "flex" : "hidden lg:flex"
-            } ${showRightPanel ? "lg:col-span-7 xl:col-span-7" : "lg:col-span-12"} ${
-              currentStep === 4 ? "!hidden" : ""
-            }`}
-          >
-            {/* Chat Room Header */}
-            <div className="px-4 py-3 border-b border-[#EADBC8] bg-gradient-to-r from-[#FFF5E6] via-[#FFFDF9] to-[#FFFDF9] flex items-center justify-between shrink-0 shadow-2xs">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl overflow-hidden border-2 border-[#FF8C1A] shadow-xs bg-white shrink-0">
-                  <img
-                    src="/images/uncle-storyteller.jpg"
-                    alt="ลุงเล่านิทาน"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-extrabold text-sm sm:text-base text-[#2C221E] leading-tight">
-                      ลุงเล่านิทาน
-                    </h3>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#0FBD8C]/15 text-[#0DA57A] text-[10px] font-bold rounded-full">
-                      <span className="w-1.5 h-1.5 bg-[#0FBD8C] rounded-full animate-pulse" />
-                      พร้อมโค้ช
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-[#8C7662] truncate max-w-[200px] sm:max-w-[320px]">
-                    {studentNickname ? (
-                      <>
-                        กำลังคุยกับ <strong>หลาน{studentNickname}</strong>{" "}
-                        {studentId && <span>({studentId})</span>}
-                      </>
-                    ) : (
-                      "ชวนคุยและแนะนำตัวกับลุงเล่านิทาน"
-                    )}
-                  </p>
-                </div>
-              </div>
-
-              {/* Status Badge */}
-              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-[#FFF5E6] border border-[#F5DEBF] rounded-xl text-xs font-bold text-[#FF8C1A]">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>ขั้นที่ {currentStep}/4</span>
-              </div>
+        <div className="flex-1 min-h-0 overflow-hidden">
+          {currentStep === 4 ? (
+            /* STEP 4: Full-width Story Result Screen */
+            <div className="h-full w-full max-w-4xl mx-auto flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+              <StoryBlueprintPanel
+                storyData={storyData}
+                studentName={studentNickname || "นักศึกษา ปวช. 1"}
+                studentId={studentId}
+                onClose={() => setMobileTab("chat")}
+                onBackToChat={() => setCurrentStep(3)}
+              />
             </div>
+          ) : (
+            /* STEPS 1-3: Split View Chat & Side Panel */
+            <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-3 overflow-hidden">
+              {/* Chat Container */}
+              <div
+                className={`flex flex-col bg-[#FFFDF9] border border-[#EADBC8] rounded-3xl shadow-sm overflow-hidden h-full ${
+                  mobileTab === "chat" ? "flex" : "hidden lg:flex"
+                } ${showRightPanel ? "lg:col-span-7 xl:col-span-7" : "lg:col-span-12"}`}
+              >
+                {/* Chat Room Header */}
+                <div className="px-4 py-3 border-b border-[#EADBC8] bg-gradient-to-r from-[#FFF5E6] via-[#FFFDF9] to-[#FFFDF9] flex items-center justify-between shrink-0 shadow-2xs">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl overflow-hidden border-2 border-[#FF8C1A] shadow-xs bg-white shrink-0">
+                      <img
+                        src="/images/uncle-storyteller.jpg"
+                        alt="ลุงเล่านิทาน"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-extrabold text-sm sm:text-base text-[#2C221E] leading-tight">
+                          ลุงเล่านิทาน
+                        </h3>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#0FBD8C]/15 text-[#0DA57A] text-[10px] font-bold rounded-full">
+                          <span className="w-1.5 h-1.5 bg-[#0FBD8C] rounded-full animate-pulse" />
+                          พร้อมโค้ช
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#8C7662] truncate max-w-[200px] sm:max-w-[320px]">
+                        {studentNickname ? (
+                          <>
+                            กำลังคุยกับ <strong>หลาน{studentNickname}</strong>{" "}
+                            {studentId && <span>({studentId})</span>}
+                          </>
+                        ) : (
+                          "ชวนคุยและแนะนำตัวกับลุงเล่านิทาน"
+                        )}
+                      </p>
+                    </div>
+                  </div>
 
-            {/* Message Stream Area */}
-            <div
-              ref={messagesContainerRef}
-              onScroll={handleScroll}
-              className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4 relative"
-            >
-              {messages.map((msg, index) => {
-                const isAssistant = msg.role === "assistant";
+                  {/* Status Badge */}
+                  <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-[#FFF5E6] border border-[#F5DEBF] rounded-xl text-xs font-bold text-[#FF8C1A]">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>ขั้นที่ {currentStep}/4</span>
+                  </div>
+                </div>
 
-                return (
-                  <div
-                    key={msg.id || index}
-                    className={`flex gap-2.5 sm:gap-3.5 ${
-                      isAssistant ? "justify-start" : "justify-end"
-                    } animate-in fade-in duration-200`}
-                  >
-                    {isAssistant && (
-                      <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl overflow-hidden border border-[#FF8C1A] shrink-0 self-start shadow-xs mt-0.5">
+                {/* Message Stream Area */}
+                <div
+                  ref={messagesContainerRef}
+                  onScroll={handleScroll}
+                  className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4 relative"
+                >
+                  {messages.map((msg, index) => {
+                    const isAssistant = msg.role === "assistant";
+
+                    return (
+                      <div
+                        key={msg.id || index}
+                        className={`flex gap-2.5 sm:gap-3.5 ${
+                          isAssistant ? "justify-start" : "justify-end"
+                        } animate-in fade-in duration-200`}
+                      >
+                        {isAssistant && (
+                          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl overflow-hidden border border-[#FF8C1A] shrink-0 self-start shadow-xs mt-0.5">
+                            <img
+                              src="/images/uncle-storyteller.jpg"
+                              alt="ลุงเล่านิทาน"
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        )}
+
+                        <div
+                          className={`max-w-[88%] sm:max-w-[80%] rounded-2xl sm:rounded-3xl p-3.5 sm:p-4 space-y-2.5 shadow-2xs ${
+                            isAssistant
+                              ? "bg-[#FFF9EE] border border-[#F5DEBF] text-[#2C221E] rounded-tl-sm"
+                              : "bg-gradient-to-r from-[#FF8C1A] to-[#FF9E2C] text-white rounded-tr-sm shadow-md"
+                          }`}
+                        >
+                          <div className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed">
+                            {msg.content}
+                          </div>
+                        </div>
+
+                        {!isAssistant && (
+                          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl overflow-hidden border-2 border-[#4C97FF] shrink-0 self-start shadow-xs mt-0.5 bg-white">
+                            <img
+                              src={userAvatar}
+                              alt="นักศึกษา"
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Thinking Indicator */}
+                  {loading && !isWritingStory && (
+                    <div className="flex gap-2.5 sm:gap-3.5 items-start animate-pulse">
+                      <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl overflow-hidden border border-[#FF8C1A] shrink-0 shadow-xs">
                         <img
                           src="/images/uncle-storyteller.jpg"
                           alt="ลุงเล่านิทาน"
                           className="w-full h-full object-cover"
                         />
                       </div>
-                    )}
+                      <div className="bg-[#FFF9EE] border border-[#F5DEBF] rounded-2xl p-3 sm:p-3.5 rounded-tl-sm shadow-2xs flex items-center gap-2.5 text-xs text-[#8C7662]">
+                        <div className="flex gap-1">
+                          <span className="w-2 h-2 bg-[#FF8C1A] rounded-full animate-bounce [animation-delay:-0.3s]" />
+                          <span className="w-2 h-2 bg-[#FFAB19] rounded-full animate-bounce [animation-delay:-0.15s]" />
+                          <span className="w-2 h-2 bg-[#FF8C1A] rounded-full animate-bounce" />
+                        </div>
+                        <span>ลุงกำลังคิดอยู่สักครู่...</span>
+                      </div>
+                    </div>
+                  )}
 
-                    <div
-                      className={`max-w-[88%] sm:max-w-[80%] rounded-2xl sm:rounded-3xl p-3.5 sm:p-4 space-y-2.5 shadow-2xs ${
-                        isAssistant
-                          ? "bg-[#FFF9EE] border border-[#F5DEBF] text-[#2C221E] rounded-tl-sm"
-                          : "bg-gradient-to-r from-[#FF8C1A] to-[#FF9E2C] text-white rounded-tr-sm shadow-md"
-                      }`}
+                  <div ref={messagesEndRef} />
+
+                  {/* Floating Scroll To Bottom Button */}
+                  {showScrollBottom && (
+                    <button
+                      type="button"
+                      onClick={scrollToBottom}
+                      className="sticky bottom-2 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-sm border border-[#EADBC8] text-[#FF8C1A] p-2 rounded-full shadow-md hover:bg-[#FFF5E6] transition-all hover:scale-110 flex items-center gap-1 text-xs font-bold z-10"
                     >
-                      <div className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed">
-                        {msg.content}
-                      </div>
-                    </div>
+                      <ArrowDown className="w-3.5 h-3.5" />
+                      <span>เลื่อนลงล่างสุด</span>
+                    </button>
+                  )}
+                </div>
 
-                    {!isAssistant && (
-                      <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl overflow-hidden border-2 border-[#4C97FF] shrink-0 self-start shadow-xs mt-0.5 bg-white">
-                        <img
-                          src={userAvatar}
-                          alt="นักศึกษา"
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              {/* Thinking Indicator */}
-              {loading && !isWritingStory && (
-                <div className="flex gap-2.5 sm:gap-3.5 items-start animate-pulse">
-                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl overflow-hidden border border-[#FF8C1A] shrink-0 shadow-xs">
-                    <img
-                      src="/images/uncle-storyteller.jpg"
-                      alt="ลุงเล่านิทาน"
-                      className="w-full h-full object-cover"
+                {/* Input Bar Area */}
+                <div className="p-2.5 sm:p-3.5 bg-white border-t border-[#EADBC8] shrink-0">
+                  <form
+                    onSubmit={handleSendMessage}
+                    className="flex items-end gap-2 bg-[#FAF6EE] p-1.5 sm:p-2 rounded-2xl sm:rounded-3xl border-1.5 border-[#EADBC8] focus-within:border-[#FF8C1A] focus-within:ring-2 focus-within:ring-[#FF8C1A]/20 transition-all"
+                  >
+                    <textarea
+                      ref={inputRef as any}
+                      rows={1}
+                      value={inputText}
+                      onChange={(e) => setInputText(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder={
+                        studentNickname
+                          ? `พิมพ์เล่าให้ลุงฟัง หรือปรึกษาลุงได้เลยครับหลาน${studentNickname}...`
+                          : "พิมพ์ชื่อเล่น และรหัสประจำตัวนักศึกษาบอกลุงที่นี่ได้เลยครับ..."
+                      }
+                      disabled={loading}
+                      className="flex-1 px-3 py-1.5 bg-transparent resize-none text-xs sm:text-sm text-[#2C221E] outline-none max-h-24 min-h-[36px] placeholder:text-[#A68F7A]"
                     />
-                  </div>
-                  <div className="bg-[#FFF9EE] border border-[#F5DEBF] rounded-2xl p-3 sm:p-3.5 rounded-tl-sm shadow-2xs flex items-center gap-2.5 text-xs text-[#8C7662]">
-                    <div className="flex gap-1">
-                      <span className="w-2 h-2 bg-[#FF8C1A] rounded-full animate-bounce [animation-delay:-0.3s]" />
-                      <span className="w-2 h-2 bg-[#FFAB19] rounded-full animate-bounce [animation-delay:-0.15s]" />
-                      <span className="w-2 h-2 bg-[#FF8C1A] rounded-full animate-bounce" />
-                    </div>
-                    <span>ลุงกำลังคิดอยู่สักครู่...</span>
+
+                    <button
+                      type="submit"
+                      disabled={!inputText.trim() || loading}
+                      className="p-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-[#FF8C1A] to-[#FFAB19] hover:from-[#E6780C] hover:to-[#E69100] text-white font-bold rounded-xl sm:rounded-2xl shadow-md transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:pointer-events-none flex items-center justify-center gap-1.5 shrink-0"
+                      title="ส่งข้อความ"
+                    >
+                      <Send className="w-4 h-4" />
+                      <span className="hidden md:inline text-xs">ส่ง</span>
+                    </button>
+                  </form>
+                  <div className="text-[10px] text-[#A68F7A] text-center mt-1 hidden sm:block">
+                    กด Enter เพื่อส่งข้อความ (กด Shift+Enter เพื่อขึ้นบรรทัดใหม่)
                   </div>
                 </div>
-              )}
+              </div>
 
-              <div ref={messagesEndRef} />
-
-              {/* Floating Scroll To Bottom Button */}
-              {showScrollBottom && (
-                <button
-                  type="button"
-                  onClick={scrollToBottom}
-                  className="sticky bottom-2 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-sm border border-[#EADBC8] text-[#FF8C1A] p-2 rounded-full shadow-md hover:bg-[#FFF5E6] transition-all hover:scale-110 flex items-center gap-1 text-xs font-bold z-10"
-                >
-                  <ArrowDown className="w-3.5 h-3.5" />
-                  <span>เลื่อนลงล่างสุด</span>
-                </button>
-              )}
-            </div>
-
-            {/* Input Bar Area */}
-            <div className="p-2.5 sm:p-3.5 bg-white border-t border-[#EADBC8] shrink-0">
-              <form
-                onSubmit={handleSendMessage}
-                className="flex items-end gap-2 bg-[#FAF6EE] p-1.5 sm:p-2 rounded-2xl sm:rounded-3xl border-1.5 border-[#EADBC8] focus-within:border-[#FF8C1A] focus-within:ring-2 focus-within:ring-[#FF8C1A]/20 transition-all"
+              {/* Right Blueprint Panel (Desktop: side column, Mobile: full tab or overlay) */}
+              <div
+                className={`h-full overflow-hidden ${
+                  mobileTab === "blueprint" ? "flex" : "hidden lg:flex"
+                } ${
+                  showRightPanel
+                    ? "lg:col-span-5 xl:col-span-5"
+                    : "hidden"
+                }`}
               >
-                <textarea
-                  ref={inputRef as any}
-                  rows={1}
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={
-                    studentNickname
-                      ? `พิมพ์เล่าให้ลุงฟัง หรือปรึกษาลุงได้เลยครับหลาน${studentNickname}...`
-                      : "พิมพ์ชื่อเล่น และรหัสประจำตัวนักศึกษาบอกลุงที่นี่ได้เลยครับ..."
-                  }
-                  disabled={loading}
-                  className="flex-1 px-3 py-1.5 bg-transparent resize-none text-xs sm:text-sm text-[#2C221E] outline-none max-h-24 min-h-[36px] placeholder:text-[#A68F7A]"
+                <StoryBlueprintPanel
+                  storyData={storyData}
+                  studentName={studentNickname || "นักศึกษา ปวช. 1"}
+                  studentId={studentId}
+                  onClose={() => setMobileTab("chat")}
                 />
-
-                <button
-                  type="submit"
-                  disabled={!inputText.trim() || loading}
-                  className="p-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-[#FF8C1A] to-[#FFAB19] hover:from-[#E6780C] hover:to-[#E69100] text-white font-bold rounded-xl sm:rounded-2xl shadow-md transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:pointer-events-none flex items-center justify-center gap-1.5 shrink-0"
-                  title="ส่งข้อความ"
-                >
-                  <Send className="w-4 h-4" />
-                  <span className="hidden md:inline text-xs">ส่ง</span>
-                </button>
-              </form>
-              <div className="text-[10px] text-[#A68F7A] text-center mt-1 hidden sm:block">
-                กด Enter เพื่อส่งข้อความ (กด Shift+Enter เพื่อขึ้นบรรทัดใหม่)
               </div>
             </div>
-          </div>
-
-          {/* Right Blueprint Panel (Desktop: side column, Mobile: full tab or overlay) */}
-          <div
-            className={`h-full overflow-hidden ${
-              mobileTab === "blueprint" ? "flex" : "hidden lg:flex"
-            } ${
-              showRightPanel
-                ? "lg:col-span-5 xl:col-span-5"
-                : "hidden"
-            } ${
-              currentStep === 4 ? "!flex lg:!col-span-12 xl:!col-span-12" : ""
-            }`}
-          >
-            <StoryBlueprintPanel
-              storyData={storyData}
-              studentName={studentNickname || "นักศึกษา ปวช. 1"}
-              studentId={studentId}
-              onClose={() => setMobileTab("chat")}
-              onBackToChat={
-                currentStep === 4 ? () => setCurrentStep(3) : undefined
-              }
-            />
-          </div>
+          )}
         </div>
       </div>
 

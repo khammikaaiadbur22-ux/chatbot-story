@@ -548,16 +548,33 @@ function executeAdaptiveStateMachine(
 
   // ── STATE: STORY_CONFIRMATION — รอ User Confirm ──
   if (!profile.confirmed_story_direction) {
-    const confirmKeywords = ["โอเค", "ได้เลย", "ok", "ตกลง", "เอาเลย", "ดีเลย", "ลุย", "ดี", "ใช่", "ยืนยัน", "สร้างเลย"];
+    const confirmKeywords = ["โอเค", "ได้เลย", "ok", "ตกลง", "เอาเลย", "ดีเลย", "ลุย", "ดี", "ใช่", "ยืนยัน", "สร้างเลย", "แต่งเลย", "เริ่มเลย", "พร้อมแล้ว", "เขียนเลย"];
     const isConfirmed = confirmKeywords.some(k => msgLower.includes(k));
 
     if (isConfirmed) {
       profile.confirmed_story_direction = true;
+      const charName = profile.character_idea || profile.name || "ผู้กล้าตัวน้อย";
+      const worldName = profile.story_world || profile.favorite_theme || "ดินแดนมหัศจรรย์";
+      const hobbyName = profile.hobbies?.[0] || "การเรียนรู้";
+      const generatedFullStory = `กาลครั้งหนึ่งนานมาแล้ว ในดินแดน${worldName} มีเด็กหนุ่มสาวนามว่า ${charName} ผู้มีใจรักใน${hobbyName}เป็นชีวิตจิตใจ วันหนึ่งเกิดความท้าทายครั้งใหญ่ขึ้น เมื่อเส้นทางสู่เป้าหมายถูกปกคลุมไปด้วยความไม่แน่นอน แต่ ${charName} ไม่เคยย่อท้อ ได้นำทักษะและไหวพริบจากการฝึกฝน${hobbyName} มาใช้แก้ปัญหาทีละเปลาะ และร่วมมือกับเพื่อนๆ จนสามารถฟันฝ่าอุปสรรค นำความสุขและความสงบสุขกลับคืนมาสู่${worldName}ได้สำเร็จ`;
+
       return {
-        reply: `เยี่ยมเลย${name}! 🎉 ลุงจะเขียนนิทานฉบับเต็มให้เดี๋ยวนี้เลย กรุณารอสักครู่นะ...\n\n✍️ ลุงกำลังแต่งเรื่องสำหรับ${name}โดยเฉพาะ...`,
+        reply: `นี่คือนิทานฉบับเต็มของ${name}ที่ลุงแต่งให้เสร็จสมบูรณ์แล้วครับ! 🎉\n\n📖 เรื่อง: การผจญภัยของ${charName}ใน${worldName}\n\n${generatedFullStory}\n\n💡 ข้อคิด: ความมุ่งมั่นและไม่ย่อท้อต่ออุปสรรค คือกุญแจสำคัญสู่ความสำเร็จ\n\n${name} สามารถดูผลลัพธ์ พิมพ์ หรือดาวน์โหลดใบนิทานเก็บไว้ได้เลยนะ!`,
         storyUpdate: {
-          ...buildUpdate("FULL_STORY", 3, profile),
-          title: `นิทานของ${name}`,
+          ...buildUpdate("FULL_STORY", 4, profile),
+          title: `การผจญภัยของ${charName}`,
+          theme: worldName,
+          plotSummary: `${charName} ใช้ทักษะ${hobbyName} และความพยายาม ในการกอบกู้${worldName} จนสำเร็จ`,
+          characters: [
+            { name: charName, role: "ตัวเอก", description: `ผู้กล้าที่มีใจรักใน${hobbyName} มีความมุ่งมั่นไม่ยอมแพ้` },
+            { name: "เพื่อนร่วมทาง", role: "ผู้ช่วย", description: "คอยให้กำลังใจและช่วยเหลือยามคับขัน" }
+          ],
+          backdrops: [
+            { name: `ดินแดน${worldName}`, description: "จุดเริ่มต้นของการผจญภัย" },
+            { name: "เส้นทางแห่งบททดสอบ", description: "สถานที่ที่ต้องใช้ไหวพริบฟันฝ่าอุปสรรค" }
+          ],
+          moralLesson: "ความพยายามและความมุ่งมั่นจะนำพาเราก้าวข้ามทุกอุปสรรค",
+          fullStory: generatedFullStory,
         },
       };
     } else {
@@ -674,11 +691,20 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Determine if we're generating a Full Story (needs more tokens) ──
+    const msgLower = (message || "").toLowerCase();
+    const confirmKeywords = ["โอเค", "ได้เลย", "ok", "ตกลง", "เอาเลย", "ดีเลย", "ลุย", "ดี", "ใช่", "ยืนยัน", "สร้างเลย", "แต่งเลย", "เริ่มเลย", "พร้อมแล้ว", "เขียนเลย"];
+    const userIsConfirming = confirmKeywords.some(k => msgLower.includes(k));
+
     const currentState = determineCurrentState(storedProfile);
     const isStoryGenerationPhase =
       currentState === "FULL_STORY" ||
       currentState === "SCRATCH_BLUEPRINT" ||
-      storedProfile.confirmed_story_direction === true;
+      storedProfile.confirmed_story_direction === true ||
+      ((currentState === "STORY_CONFIRMATION" || currentState === "STORY_DIRECTION") && userIsConfirming);
+
+    if (isStoryGenerationPhase) {
+      storedProfile.confirmed_story_direction = true;
+    }
 
     // ── Build Context for AI ──
     const profileSummary = `
@@ -695,12 +721,12 @@ story_world: ${storedProfile.story_world || "ยังไม่ทราบ"}
 story_problem: ${storedProfile.story_problem || "ยังไม่ทราบ"}
 story_goal: ${storedProfile.story_goal || "ยังไม่ทราบ"}
 confirmed_story_direction: ${storedProfile.confirmed_story_direction || false}
-[สถานะการสนทนา: ${currentState}]
+[สถานะการสนทนา: ${isStoryGenerationPhase ? "FULL_STORY" : currentState}]
 [ขั้นตอน: ${step}]
 `;
 
     const storyGenInstruction = isStoryGenerationPhase
-      ? `\n\n[IMPORTANT: ขณะนี้อยู่ใน FULL_STORY phase]\nผู้เรียนยืนยันแนวทางแล้ว สร้าง FULL STORY เป็นร้อยแก้วต่อเนื่อง 250-400 คำ (นับเฉพาะเนื้อเรื่อง ไม่นับชื่อเรื่องและรายชื่อตัวละคร) ใส่ fullStory ใน JSON\nห้ามส่งแค่ outline ห้ามใช้ bullet points แทนเนื้อเรื่อง\nนิทานต้องมีบทสนทนา เหตุการณ์ อุปสรรค climax และ moral\n`
+      ? `\n\n[CRITICAL INSTRUCTION: ขณะนี้คือขั้นตอนแต่งนิทานฉบับเต็ม FULL_STORY]\nผู้เรียนได้ยืนยันแนวทางเรื่องแล้ว ในข้อความนี้คุณลุงต้องแต่งนิทานฉบับเต็มทันที!\n1. ตอบกลับด้วยความอบอุ่นและตื่นเต้น นำนิทานมาเล่าให้ฟัง\n2. ใน story_json ต้องระบุข้อมูลให้ครบถ้วน 100%:\n   - "conversationState": "FULL_STORY"\n   - "title": ชื่อเรื่องนิทานที่น่าสนใจ\n   - "theme": ธีมเรื่อง\n   - "plotSummary": สรุปโครงเรื่อง\n   - "characters": [{ "name": "...", "role": "ตัวเอก", "description": "..." }, { "name": "...", "role": "เพื่อน/ผู้ช่วย", "description": "..." }]\n   - "backdrops": [{ "name": "...", "description": "..." }, { "name": "...", "description": "..." }]\n   - "moralLesson": ข้อคิดคติสอนใจที่ได้จากเรื่อง\n   - "fullStory": นิทานฉบับเต็ม 250-400 คำ เป็นร้อยแก้ว มีบทสนทนา เหตุการณ์ อุปสรรค และบทสรุป\nห้ามเว้นว่าง characters, backdrops, moralLesson หรือ fullStory เด็ดขาด!\n`
       : "";
 
     const currentContext = `${profileSummary}${storyGenInstruction}\nข้อความล่าสุดจากผู้เรียน: "${message}"`;
@@ -795,7 +821,14 @@ confirmed_story_direction: ${storedProfile.confirmed_story_direction || false}
     if (["GREETING", "NAME", "HOBBY", "INTEREST"].includes(stateName)) mappedStep = 1;
     else if (["PERSONALITY", "IMAGINATION", "STORY_DIRECTION"].includes(stateName)) mappedStep = 2;
     else if (["STORY_CONFIRMATION"].includes(stateName)) mappedStep = 3;
-    else if (["FULL_STORY", "SCRATCH_BLUEPRINT"].includes(stateName)) mappedStep = 4;
+    else if (stateName === "FULL_STORY" || stateName === "SCRATCH_BLUEPRINT") {
+      // Step 4 ONLY when fullStory actually exists!
+      if (parsedStoryUpdate.fullStory && parsedStoryUpdate.fullStory.length > 50) {
+        mappedStep = 4;
+      } else {
+        mappedStep = 3;
+      }
+    }
 
     parsedStoryUpdate.currentStep = mappedStep;
 
