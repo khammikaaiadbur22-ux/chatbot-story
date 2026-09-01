@@ -19,7 +19,9 @@ import {
   Compass,
   Wand2,
   CheckCircle2,
+  Activity,
 } from "lucide-react";
+import { StoryGenerationProgressDashboard } from "./StoryGenerationProgressDashboard";
 
 export interface CharacterItem {
   name: string;
@@ -84,7 +86,7 @@ export function StoryBlueprintPanel({
   onBackToChat,
 }: StoryBlueprintPanelProps) {
   const [showPrintModal, setShowPrintModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<"profile" | "fullstory" | "story">("story");
+  const [activeTab, setActiveTab] = useState<"profile" | "fullstory" | "story" | "progress">("story");
   const [hasAutoOpened, setHasAutoOpened] = useState(false);
 
   const handlePrint = () => {
@@ -111,7 +113,7 @@ export function StoryBlueprintPanel({
   }
 
   // Show Full Story tab if there's a full story
-  const hasFullStory = fullStoryFromDB.length > 100;
+  const hasFullStory = fullStoryFromDB.length > 30;
 
   // Auto-show the print modal when the story generation is finished
   React.useEffect(() => {
@@ -198,18 +200,6 @@ export function StoryBlueprintPanel({
 
         {/* Tab Selector */}
         <div className="flex border-b border-[#EADBC8] bg-[#F7EFE3]/50 p-1 gap-1">
-          <button
-            type="button"
-            onClick={() => setActiveTab("profile")}
-            className={`flex-1 py-1.5 text-[10px] font-semibold rounded-lg transition-all flex items-center justify-center gap-1 ${
-              activeTab === "profile"
-                ? "bg-white text-[#FF8C1A] shadow-xs"
-                : "text-[#8C7662] hover:text-[#2C221E]"
-            }`}
-          >
-            <User className="w-3 h-3" />
-            <span>ตัวตน</span>
-          </button>
           {hasFullStory && (
             <button
               type="button"
@@ -235,6 +225,30 @@ export function StoryBlueprintPanel({
           >
             <Sparkles className="w-3 h-3" />
             <span>โครงเรื่อง</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("progress")}
+            className={`flex-1 py-1.5 text-[10px] font-semibold rounded-lg transition-all flex items-center justify-center gap-1 ${
+              activeTab === "progress"
+                ? "bg-white text-[#0FBD8C] shadow-xs font-bold"
+                : "text-[#8C7662] hover:text-[#2C221E]"
+            }`}
+          >
+            <CheckCircle2 className="w-3 h-3 text-[#0FBD8C]" />
+            <span>ขั้นตอนสร้าง</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("profile")}
+            className={`flex-1 py-1.5 text-[10px] font-semibold rounded-lg transition-all flex items-center justify-center gap-1 ${
+              activeTab === "profile"
+                ? "bg-white text-[#FF8C1A] shadow-xs"
+                : "text-[#8C7662] hover:text-[#2C221E]"
+            }`}
+          >
+            <User className="w-3 h-3" />
+            <span>ตัวตน</span>
           </button>
         </div>
 
@@ -457,6 +471,18 @@ export function StoryBlueprintPanel({
                 </div>
               </div>
             </>
+          )}
+
+          {activeTab === "progress" && (
+            <div className="h-full -m-4">
+              <StoryGenerationProgressDashboard
+                status={hasFullStory ? "completed" : "processing"}
+                studentName={resolvedName}
+                storyTitle={storyData.title}
+                onViewStory={() => setActiveTab("fullstory")}
+                onPrint={() => setShowPrintModal(true)}
+              />
+            </div>
           )}
         </div>
       </div>

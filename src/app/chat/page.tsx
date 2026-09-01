@@ -21,6 +21,7 @@ import {
   StoryBlueprintPanel,
   StoryData,
 } from "@/components/StoryBlueprintPanel";
+import { StoryGenerationProgressDashboard } from "@/components/StoryGenerationProgressDashboard";
 
 interface MessageItem {
   id: string;
@@ -39,6 +40,7 @@ export default function StoryChatPage() {
   const [inputText, setInputText] = useState("");
   const [loading, setLoading] = useState(false);
   const [isWritingStory, setIsWritingStory] = useState(false); // true เมื่อ AI กำลัง generate นิทาน
+  const [generationError, setGenerationError] = useState<string | null>(null);
   const [storyProgress, setStoryProgress] = useState(0);
   const [storyTimeLeft, setStoryTimeLeft] = useState(20);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -208,6 +210,8 @@ export default function StoryChatPage() {
       ((storyData as any).conversationState === "STORY_CONFIRMATION" && isConfirmed)
     ) {
       setIsWritingStory(true);
+      setGenerationError(null);
+      setCurrentStep(4);
     }
 
     try {
@@ -294,8 +298,13 @@ export default function StoryChatPage() {
           }
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Chat error:", err);
+      if (isStoryPhase) {
+        setGenerationError(
+          err?.message || "ไม่สามารถประมวลผลการสร้างนิทานได้ในขณะนี้ กรุณากดปุ่มลองใหม่อีกครั้ง"
+        );
+      }
       const errorMsg: MessageItem = {
         id: `bot-err-${Date.now()}`,
         role: "assistant",
@@ -468,15 +477,34 @@ export default function StoryChatPage() {
         {/* Dynamic Responsive Content Area */}
         <div className="flex-1 min-h-0 overflow-hidden">
           {currentStep === 4 ? (
-            /* STEP 4: Full-width Story Result Screen */
+            /* STEP 4: Full-width Story Result & Real-Time Progress Dashboard Screen */
             <div className="h-full w-full max-w-4xl mx-auto flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-300">
-              <StoryBlueprintPanel
-                storyData={storyData}
-                studentName={studentNickname || "นักศึกษา ปวช. 1"}
-                studentId={studentId}
-                onClose={() => setMobileTab("chat")}
-                onBackToChat={() => setCurrentStep(3)}
-              />
+              {isWritingStory ? (
+                <StoryGenerationProgressDashboard
+                  status="processing"
+                  studentName={studentNickname || "นักศึกษาคนเก่ง"}
+                  storyTitle={storyData.title}
+                />
+              ) : generationError ? (
+                <StoryGenerationProgressDashboard
+                  status="error"
+                  errorMessage={generationError}
+                  studentName={studentNickname || "นักศึกษาคนเก่ง"}
+                  storyTitle={storyData.title}
+                  onRetry={() => {
+                    setGenerationError(null);
+                    setCurrentStep(3);
+                  }}
+                />
+              ) : (
+                <StoryBlueprintPanel
+                  storyData={storyData}
+                  studentName={studentNickname || "นักศึกษา ปวช. 1"}
+                  studentId={studentId}
+                  onClose={() => setMobileTab("chat")}
+                  onBackToChat={() => setCurrentStep(3)}
+                />
+              )}
             </div>
           ) : (
             /* STEPS 1-3: Split View Chat & Side Panel */
@@ -672,87 +700,6 @@ export default function StoryChatPage() {
           )}
         </div>
       </div>
-
-      {/* ================================================
-          STORY WRITING OVERLAY
-          แสดงเมื่อ AI กำลัง generate นิทานฉบับเต็ม
-          ================================================ */}
-      {isWritingStory && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-[#FFFDF9] border border-[#F5DEBF] rounded-3xl shadow-2xl mx-4 max-w-sm w-full p-8 flex flex-col items-center gap-6 animate-in zoom-in-95 duration-300">
-
-            {/* Uncle Storyteller Avatar + Writing Animation */}
-            <div className="relative">
-              {/* Spinning ring */}
-              <div className="absolute inset-0 rounded-full border-4 border-dashed border-[#FF8C1A]/40 animate-spin [animation-duration:4s]" />
-              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-[#FF8C1A] animate-spin [animation-duration:1.5s]" />
-
-              {/* Avatar */}
-              <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-[#FF8C1A] shadow-lg">
-                <img
-                  src="/images/uncle-storyteller.jpg"
-                  alt="ลุงเล่านิทาน"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-
-              {/* Pencil icon badge */}
-              <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-[#FF8C1A] flex items-center justify-center shadow-md text-white text-base animate-bounce">
-                ✍️
-              </div>
-            </div>
-
-            {/* Title */}
-            <div className="text-center space-y-1.5">
-              <h3 className="font-extrabold text-lg text-[#2C221E]">
-                ลุงกำลังแต่งนิทาน...
-              </h3>
-              <p className="text-sm text-[#8C7662] leading-relaxed">
-                ลุงกำลังเขียนนิทานฉบับเต็มจากเรื่องราวของหนูอยู่นะ
-                <br />
-                ขอเวลาสักครู่นึงนะ 😊
-              </p>
-            </div>
-
-            {/* Animated dots progress */}
-            <div className="flex items-center gap-3">
-              <div className="flex gap-1.5">
-                {[0, 1, 2, 3, 4].map((i) => (
-                  <span
-                    key={i}
-                    className="w-2.5 h-2.5 rounded-full bg-[#FF8C1A] animate-bounce"
-                    style={{ animationDelay: `${i * 0.15}s` }}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Writing progress bar */}
-            <div className="w-full space-y-2">
-              <div className="flex justify-between text-[11px] font-bold text-[#8C7662]">
-                <span>ความคืบหน้า {storyProgress}%</span>
-                <span>รอประมาณ {storyTimeLeft} วินาที...</span>
-              </div>
-              <div className="w-full bg-[#F5DEBF] rounded-full h-3 overflow-hidden shadow-inner relative">
-                <div
-                  className="absolute top-0 left-0 h-full bg-gradient-to-r from-[#FF8C1A] to-[#FFAB19] rounded-full transition-all duration-1000 ease-out"
-                  style={{ width: `${storyProgress}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Warning message */}
-            <div className="w-full bg-[#FFF5E6] border border-[#F5DEBF] rounded-2xl px-4 py-3 flex items-start gap-2.5">
-              <span className="text-[#FF8C1A] text-base shrink-0 mt-0.5">⚠️</span>
-              <p className="text-[11px] text-[#665343] leading-relaxed">
-                <strong>อย่ากด Refresh หรือปิดหน้าต่างนี้นะ</strong>
-                <br />
-                ระบบกำลังทำงานอยู่ รอแป๊บนึงก็จะได้นิทานแล้ว!
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
