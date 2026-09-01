@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { StoryStepper, STORY_STEPS } from "@/components/StoryStepper";
+import { QuickPrompts } from "@/components/QuickPrompts";
 import {
   StoryBlueprintPanel,
   StoryData,
@@ -175,6 +176,98 @@ export default function StoryChatPage() {
       console.error("Failed to load story:", err);
     } finally {
       setInitialLoading(false);
+    }
+  };
+
+  const handleGenerateStory = async (customPrompt?: string) => {
+    const text = customPrompt || "ตกลงครับคุณลุง ช่วยเขียนนิทานฉบับเต็มและโครงเรื่องให้ผมเลยครับ!";
+    if (loading || isWritingStory) return;
+
+    setIsWritingStory(true);
+    setGenerationError(null);
+    setCurrentStep(4);
+    setLoading(true);
+
+    const userMsg: MessageItem = {
+      id: `temp-${Date.now()}`,
+      role: "user",
+      content: text,
+      step: 4,
+    };
+    setMessages((prev) => [...prev, userMsg]);
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversationId,
+          userId,
+          studentNickname,
+          studentId,
+          userProfile: storyData.userProfile,
+          message: text,
+          currentStoryData: {
+            ...storyData,
+            studentNickname,
+            studentId,
+          },
+          step: 4,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`API request failed with status ${res.status}`);
+      }
+
+      const data = await res.json();
+
+      if (data.reply) {
+        const assistantMsg: MessageItem = {
+          id: `bot-${Date.now()}`,
+          role: "assistant",
+          content: data.reply,
+          step: data.step || 4,
+        };
+        setMessages((prev) => [...prev, assistantMsg]);
+
+        if (data.storyUpdate) {
+          setStoryData((prev) => ({
+            ...prev,
+            title: data.storyUpdate.title || prev.title,
+            theme: data.storyUpdate.theme || prev.theme,
+            currentStep: 4,
+            plotSummary: data.storyUpdate.plotSummary || prev.plotSummary,
+            fullStory: data.fullStory || data.storyUpdate.fullStory || prev.fullStory,
+            conversationState: data.storyUpdate.conversationState || (prev as any).conversationState,
+            userProfile: data.userProfile || data.storyUpdate.userProfile || prev.userProfile,
+            characters:
+              data.storyUpdate.characters && data.storyUpdate.characters.length > 0
+                ? data.storyUpdate.characters
+                : prev.characters,
+            backdrops:
+              data.storyUpdate.backdrops && data.storyUpdate.backdrops.length > 0
+                ? data.storyUpdate.backdrops
+                : prev.backdrops,
+            moralLesson: data.storyUpdate.moralLesson || prev.moralLesson,
+          } as any));
+        }
+      }
+    } catch (err: any) {
+      console.error("Story generation error:", err);
+      setGenerationError(
+        err?.message || "ไม่สามารถประมวลผลการสร้างนิทานได้ในขณะนี้ กรุณากดปุ่มลองใหม่อีกครั้ง"
+      );
+      const errorMsg: MessageItem = {
+        id: `bot-err-${Date.now()}`,
+        role: "assistant",
+        content: "ขออภัยครับ ลุงมีปัญหาเชื่อมต่อทางเทคนิคนิดหน่อย รบกวนกดลองสร้างใหม่อีกครั้งนะ 😅",
+        step: 4,
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setLoading(false);
+      setIsWritingStory(false);
     }
   };
 
@@ -491,18 +584,22 @@ export default function StoryChatPage() {
                   errorMessage={generationError}
                   studentName={studentNickname || "นักศึกษาคนเก่ง"}
                   storyTitle={storyData.title}
-                  onRetry={() => {
-                    setGenerationError(null);
-                    setCurrentStep(3);
-                  }}
+                  onRetry={() => handleGenerateStory()}
                 />
-              ) : (
+              ) : storyData.fullStory && storyData.fullStory.length > 30 ? (
                 <StoryBlueprintPanel
                   storyData={storyData}
                   studentName={studentNickname || "นักศึกษา ปวช. 1"}
                   studentId={studentId}
                   onClose={() => setMobileTab("chat")}
                   onBackToChat={() => setCurrentStep(3)}
+                />
+              ) : (
+                <StoryGenerationProgressDashboard
+                  status="idle"
+                  studentName={studentNickname || "นักศึกษาคนเก่ง"}
+                  storyTitle={storyData.title}
+                  onRetry={() => handleGenerateStory()}
                 />
               )}
             </div>
@@ -642,8 +739,38 @@ export default function StoryChatPage() {
                   )}
                 </div>
 
+                {/* Quick Prompts & Action Area */}
+                <div className="px-3 pt-2 bg-white border-t border-[#EADBC8] space-y-2">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex-1 min-w-[200px]">
+                      <QuickPrompts
+                        step={currentStep}
+                        hasIntroduced={Boolean(studentNickname)}
+                        onSelectPrompt={(p) => {
+                          setInputText(p);
+                          inputRef.current?.focus();
+                        }}
+                        disabled={loading || isWritingStory}
+                      />
+                    </div>
+
+                    {currentStep >= 2 && (
+                      <button
+                        type="button"
+                        onClick={() => handleGenerateStory()}
+                        disabled={loading || isWritingStory}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-[#FF8C1A] to-[#FFAB19] hover:from-[#E6780C] hover:to-[#E69100] text-white font-bold text-xs rounded-xl shadow-xs transition-all hover:scale-105 active:scale-95 disabled:opacity-50 shrink-0"
+                        title="เริ่มกระบวนการสร้างนิทานฉบับเต็ม"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                        <span>สร้างนิทานเลย ✨</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 {/* Input Bar Area */}
-                <div className="p-2.5 sm:p-3.5 bg-white border-t border-[#EADBC8] shrink-0">
+                <div className="p-2.5 sm:p-3.5 bg-white shrink-0">
                   <form
                     onSubmit={handleSendMessage}
                     className="flex items-end gap-2 bg-[#FAF6EE] p-1.5 sm:p-2 rounded-2xl sm:rounded-3xl border-1.5 border-[#EADBC8] focus-within:border-[#FF8C1A] focus-within:ring-2 focus-within:ring-[#FF8C1A]/20 transition-all"
