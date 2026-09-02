@@ -20,9 +20,6 @@ const fredokaFont = Fredoka({
 export const metadata: Metadata = {
   title: "ลุงเล่านิทาน - AI E-SOP Fable & Scratch Story Coach",
   description: "ผู้ช่วยใจดีชวนน้องๆ สร้างสรรค์นิทานอีสปและแปลงไอเดียเป็นโครงงาน Scratch",
-  icons: {
-    icon: "/images/uncle-storyteller.jpg",
-  },
 };
 
 export default function RootLayout({
