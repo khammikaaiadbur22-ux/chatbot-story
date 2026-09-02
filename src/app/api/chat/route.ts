@@ -310,8 +310,8 @@ ACT 6 — MORAL: ข้อคิดเตือนใจสไตล์นิท
 `;
 
 const CANDIDATE_MODELS = [
-  "gemini-3.6-flash",
-  "gemini-3.6-pro",
+  "gemini-1.5-flash",
+  "gemini-1.5-pro",
 ];
 
 // ============================================================
