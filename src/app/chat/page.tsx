@@ -235,7 +235,7 @@ export default function StoryChatPage() {
           step: 1,
         };
         setMessages([warningMsg]);
-        setIsLoading(false);
+        setLoading(false);
         // รีเซ็ตและรีเฟรชหน้าหลังจาก 3 วินาที
         setTimeout(() => {
           window.location.reload();
@@ -372,7 +372,7 @@ export default function StoryChatPage() {
           step: 1,
         };
         setMessages([warningMsg]);
-        setIsLoading(false);
+        setLoading(false);
         // รีเซ็ตและรีเฟรชหน้าหลังจาก 3 วินาที
         setTimeout(() => {
           window.location.reload();

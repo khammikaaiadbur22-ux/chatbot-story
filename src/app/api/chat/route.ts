@@ -430,11 +430,17 @@ function buildCreativePrompt(currentState: string, name: string, profile: UserPr
 function extractKeyword(text: string): string {
   let cleaned = text.trim();
 
-  // 1. ตัดคำสร้อยท้ายประโยค (ค่ะ, ครับ, นะ, จ้า, เลย, นะครับ, นะค่ะ ฯลฯ)
+  // 1. ตัดคำสร้อยและคำลงท้าย
   cleaned = cleaned.replace(/\s*(นะครับ|นะค่ะ|ครับผม|ค่ะหนู|ครับ|ค่ะ|นะ|จ้า|เลย|ด้วย|ก็ได้|แน่นอน|แน่ๆ|เลยค่ะ|เลยครับ|แน่นอนค่ะ|แน่นอนครับ|ค่ะ้|ครับ้)\s*$/g, "").trim();
 
-  // 2. ตัดคำนำหน้าที่ไม่ใช่ keyword (ฉัน, ผม, หนู, ชอบ, อยาก, ต้องการ, เลือก, เอา, ขอ)
-  cleaned = cleaned.replace(/^(ฉัน|ผม|หนู|เรา|เขา|มัน)?(ชอบ|อยาก|ต้องการ|เลือก|เอา|ขอ|สนใจ|ชื่นชอบ|ถูกใจ|โปรด)\s*/g, "").trim();
+  // 2. ตัดคำนำหน้าที่ไม่ใช่ keyword
+  // รันแบบ loop จนกว่าจะไม่เจอคำที่ต้องตัดอีก เพื่อให้ครอบคลุม "ฉัน ก็คงจะ อยากได้"
+  let previous = "";
+  while (cleaned !== previous) {
+    previous = cleaned;
+    cleaned = cleaned.replace(/^(ฉัน|ผม|หนู|เรา|เขา|มัน|ก็)\s*/g, "").trim();
+    cleaned = cleaned.replace(/^(คงจะ|ก็คงจะ|ก็คงเป็น|คงเป็น|ก็คง|คง|น่าจะ|อาจจะ|คิดว่า|เห็นว่า|รู้สึกว่า|อยากจะ|อยากได้|อยากให้|อยาก|ต้องการ|ขอเป็น|ขอ|เลือก|เอา|ชอบ|สนใจ|ชื่นชอบ|โปรด|คือ|เป็น)\s*/g, "").trim();
+  }
 
   // 3. แมปคำพ้องความหมายที่ผู้เรียนมักพิมพ์มาเป็นคีย์เวิร์ดมาตรฐาน
   const synonymMap: Record<string, string> = {
@@ -993,9 +999,9 @@ confirmed_story_direction: ${storedProfile.confirmed_story_direction || false}
 
       for (const modelName of CANDIDATE_MODELS) {
         try {
-          // หมดเวลา 25 วินาทีต่อ model เพื่อป้องกันรอนาน
+          // หมดเวลา 55 วินาทีต่อ model เพื่อป้องกันรอนานเกินขีดจำกัด Serverless
           const abortController = new AbortController();
-          const timeoutId = setTimeout(() => abortController.abort(), 25000);
+          const timeoutId = setTimeout(() => abortController.abort(), 55000);
 
           const result = await generateText({
             model: googleAI(modelName),
