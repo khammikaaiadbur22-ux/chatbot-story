@@ -1,0 +1,58 @@
+
+> temp-app@0.1.0 dev
+> next dev
+
+▲ Next.js 16.3.3 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.1.103:3000
+- Environments: .env.local
+✓ Ready in 311ms
+✓ Running next.config.ts took 101ms
+
+prisma:error 
+Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].conversation.findUnique()` invocation in
+/Users/khemmika/Documents/ChatBot_It/.next/dev/server/chunks/[root-of-the-server]__10bxa3l._.js:693:178
+
+  690 let dbConversation = null;
+  691 let historyMessages = [];
+  692 if (conversationId) {
+→ 693     dbConversation = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].conversation.findUnique(
+error: Environment variable not found: DATABASE_URL.
+  -->  schema.prisma:3
+   | 
+ 2 |   provider  = "postgresql"
+ 3 |   url       = env("DATABASE_URL")
+   | 
+
+Validation Error Count: 1
+Chat API error: Error [PrismaClientInitializationError]: 
+Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].conversation.findUnique()` invocation in
+/Users/khemmika/Documents/ChatBot_It/.next/dev/server/chunks/[root-of-the-server]__10bxa3l._.js:693:178
+
+  690 let dbConversation = null;
+  691 let historyMessages = [];
+  692 if (conversationId) {
+→ 693     dbConversation = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].conversation.findUnique(
+error: Environment variable not found: DATABASE_URL.
+  -->  schema.prisma:3
+   | 
+ 2 |   provider  = "postgresql"
+ 3 |   url       = env("DATABASE_URL")
+   | 
+
+Validation Error Count: 1
+    at <unknown> (src/app/api/chat/route.ts:648:50)
+    at <unknown> (-->  schema.prisma:3)
+    at async POST (src/app/api/chat/route.ts:648:24)
+  646 |
+  647 |     if (conversationId) {
+> 648 |       dbConversation = await prisma.conversation.findUnique({
+      |                                                  ^
+  649 |         where: { id: conversationId },
+  650 |         include: {
+  651 |           user: true, {
+  clientVersion: '5.22.0',
+  errorCode: undefined
+}
+ POST /api/chat 500 in 2.1s (next.js: 830ms, application-code: 1258ms)
+[?25h

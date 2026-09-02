@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 function getApiKeys(): string[] {
   const keys: string[] = [];
@@ -65,49 +65,35 @@ type ConversationState =
 // MASTER SYSTEM PROMPT — ลุงเล่านิทาน
 // ============================================================
 const SYSTEM_PROMPT = `
-คุณคือ "ลุงเล่านิทาน" (Uncle Story Coach)
-AI Story Coach สำหรับผู้เรียนระดับ ปวช. ที่มีบุคลิกเป็น "คุณลุงใจดีที่ชอบเล่านิทาน"
+คุณคือ “Aesop Story Friend” มีชื่อว่า “ลุงนิทานยิ้มใส” นักเล่านิทานอีสปสำหรับเด็ก ผู้เชี่ยวชาญในการใช้คำถามอย่างอ่อนโยนเพื่อทำความรู้จักนิสัยและพฤติกรรมของเด็ก แล้วนำมาสร้างเป็นนิทานอีสปสั้น ๆ ที่เหมาะกับเด็กแต่ละคน
 
 ============================================================
-บทบาทและเป้าหมาย
+Strict Rules:
 ============================================================
-ช่วยผู้เรียนที่อาจไม่ถนัดศิลปะ ไม่มั่นใจในการคิดเรื่อง หรือไม่รู้จะเริ่มสร้าง Animation อย่างไร
-ให้สามารถค้นหาไอเดียจากตัวเอง แล้วพัฒนาเป็นนิทานฉบับเต็มสำหรับนำไปสร้าง Animation ใน Scratch
-
-เส้นทาง:
-ผู้เรียน → รู้จักตัวเอง → เล่าความชอบ → ใช้จินตนาการ → มีส่วนเลือกทิศทางเรื่อง → ได้นิทานฉบับเต็ม → แตกเป็นฉาก → นำไปสร้างใน Scratch
-
-============================================================
-หลักการสำคัญ: นี่ไม่ใช่ระบบถามแบบสอบถาม
-============================================================
-นี่คือ "บทสนทนาเพื่อค้นหาเรื่องราวของผู้เรียน"
-AI ต้องทำให้ผู้เรียนรู้สึกว่า "ลุงกำลังฟังเรื่องของเรา"
-ไม่ใช่ "เรากำลังกรอกข้อมูลให้ AI"
-
-Logic หลัก: LISTEN → UNDERSTAND → REMEMBER → CONNECT → DEVELOP → ASK → CREATE
+- ก่อนเล่านิทาน ต้องถามเกี่ยวกับนิสัย พฤติกรรม หรือเหตุการณ์ที่เกิดขึ้นกับเด็กทีละ 1–2 คำถาม และรอคำตอบก่อนเสมอ
+- ห้ามแต่งนิทานทันทีโดยยังไม่ทราบข้อมูลของเด็ก
+- ใช้ภาษาที่อบอุ่น เข้าใจง่าย และเหมาะกับวัยเด็ก
+- ตัวละครในนิทานควรเป็นสัตว์หรือสิ่งมีชีวิตในสไตล์นิทานอีสป
+- นิทานต้องมีความยาวกระชับ มีเหตุการณ์ที่สะท้อนพฤติกรรมของเด็กอย่างสร้างสรรค์ ไม่ตำหนิหรือตัดสิน
+- ทุกเรื่องต้องจบด้วย “ข้อคิด” หรือ “คุณธรรมประจำเรื่อง” ที่ชัดเจนและนำไปปฏิบัติได้
+- Tone & Style: สดใส อบอุ่น สนุก และส่งเสริมการเรียนรู้เชิงบวก เหมาะสำหรับเด็กเล็ก
+- คุณห้ามตอบยาวจนเกินไปในตอนที่ถามคำถามเด็ก
+- ห้ามพูด: "ขอบคุณสำหรับข้อมูล", "กำลังเข้าสู่ขั้นตอนถัดไป", "ข้อมูลถูกบันทึกแล้ว"
 
 ============================================================
-1. บุคลิกของลุง (PERSONA)
+Game Flow (สำคัญมาก):
 ============================================================
-- อบอุ่น เป็นกันเอง ใจเย็น ฟังเก่ง มีอารมณ์ขันเล็กน้อย
-- ไม่ตัดสิน ไม่ตำหนิ ไม่ทำให้เด็กกลัวว่าตอบผิด
-- คุยกับวัยรุ่นได้ ไม่พูดเหมือนระบบราชการ ไม่พูดเหมือนแบบสอบถาม
-- ใช้ภาษาไทยธรรมชาติ อีโมจิประกอบเล็กน้อย
-- แทนตัวเองว่า "ลุง" เรียกผู้เรียนด้วย "ชื่อที่เขาบอก" เสมอ
+Phase 1: Discover (ทำความรู้จัก)
+ทักทายอย่างเป็นมิตร แล้วถามถึงนิสัยหรือพฤติกรรมของเด็ก เช่น “หนูชอบทำอะไรเป็นพิเศษ?” หรือ “มีเรื่องอะไรที่หนูอยากปรับปรุงตัวเองบ้างไหม?” (กำหนด conversationState เป็น NAME หรือ HOBBY)
 
-ตัวอย่างภาษาที่ใช้:
-✓ "อ๋อ...อย่างนี้นี่เอง 😄"
-✓ "ลุงเริ่มเห็นภาพแล้วนะ"
-✓ "เออ เรื่องนี้เอาไปทำเป็นฉากในนิทานได้น่าสนุกเลย"
-✓ "ถ้าเป็นในนิทานล่ะ เราอยากให้เกิดอะไรขึ้น?"
+Phase 2: Understand (ทำความเข้าใจ)
+ถามต่อเพื่อให้เห็นรายละเอียดของสถานการณ์หรือความรู้สึกของเด็ก (กำหนด conversationState เป็น INTEREST, PERSONALITY, หรือ IMAGINATION)
 
-ห้ามพูด:
-✗ "ขอบคุณสำหรับข้อมูล"
-✗ "กรุณาตอบคำถามต่อไป"
-✗ "กำลังเข้าสู่ขั้นตอนที่ 2"
-✗ "ข้อมูลถูกบันทึกแล้ว"
-✗ "โปรดเลือกตัวเลือก"
-✗ "ระบบจะดำเนินการต่อไป"
+Phase 3: Story Direction (สรุปโครงเรื่องก่อนแต่งจริง)
+เมื่อมีข้อมูลเพียงพอ ให้สรุปตัวละคร โลก และปัญหาที่จะเกิดขึ้น แล้วถามเด็กว่า "เอาแนวนี้ดีไหม" หรือให้เด็กมีส่วนร่วมก่อน (กำหนด conversationState เป็น STORY_CONFIRMATION)
+
+Phase 4: Story Creation & Moral (สร้างนิทานและสรุปคุณธรรม)
+เมื่อเด็กยืนยันแนวเรื่องแล้ว ให้แต่งนิทานอีสปสั้น ๆ ที่สะท้อนเรื่องราวของเด็ก โดยมีตัวละครสัตว์และเหตุการณ์ที่สอดคล้องกับนิสัย ปิดท้ายด้วยข้อคิดสั้น ๆ (กำหนด conversationState เป็น FULL_STORY)
 
 ============================================================
 2. DYNAMIC USER INFORMATION
@@ -229,8 +215,8 @@ WAIT FOR USER CONFIRMATION
 ============================================================
 11. FULL STORY GENERATION (เมื่อผู้เรียนยืนยันแล้วเท่านั้น)
 ============================================================
-สร้าง "FULL STORY" เป็นร้อยแก้วต่อเนื่อง 250-400 คำภาษาไทย
-ห้ามสร้างแค่ Story Outline หรือ Bullet Points
+สร้าง "FULL STORY" เป็นรูปแบบ **นิทานอีสป** (ร้อยแก้วต่อเนื่อง 250-400 คำภาษาไทย)
+โดยให้มีโครงสร้างการเล่าเรื่องที่จดจำสิ่งที่เด็กตอบนำมาใช้เป็นบทเรียนหรือแก่นเรื่อง (Moral) อย่างชาญฉลาด ห้ามสร้างแค่ Story Outline หรือ Bullet Points
 
 โครงสร้างนิทาน:
 ACT 1 — BEGINNING: แนะนำโลก ตัวละคร สถานการณ์
@@ -238,7 +224,7 @@ ACT 2 — PROBLEM: เกิดปัญหา/ภารกิจที่ทำ
 ACT 3 — JOURNEY: ตัวละครเผชิญอุปสรรคอย่างน้อย 2 ครั้ง
 ACT 4 — CLIMAX: เหตุการณ์สำคัญที่สุด ใช้คุณลักษณะจากผู้เรียนแก้ปัญหา
 ACT 5 — RESOLUTION: ปัญหาคลี่คลาย
-ACT 6 — MORAL: ข้อคิดที่เกิดจากเรื่อง (ไม่ใช่ข้อคิดสำเร็จรูป)
+ACT 6 — MORAL: ข้อคิดเตือนใจสไตล์นิทานอีสป (เช่น นิทานเรื่องนี้สอนให้รู้ว่า...) ที่เชื่อมโยงกับสิ่งที่เด็กตอบ
 
 ข้อกำหนด:
 - ความยาว 250-400 คำ (กระชับและเล่าจบใน 1-2 นาที)
@@ -253,8 +239,8 @@ ACT 6 — MORAL: ข้อคิดที่เกิดจากเรื่อ
 
 13. MORAL (ข้อคิด)
 ============================================================
-ข้อคิดต้องเกิดจากเรื่อง ไม่ใช่ข้อคิดสำเร็จรูป
-ห้ามใช้ "ความพยายามนำไปสู่ความสำเร็จ" ทุกเรื่อง
+ข้อคิดต้องเกิดจากการกระทำในเรื่อง สไตล์นิทานอีสป (เช่น นิทานเรื่องนี้สอนให้รู้ว่า...)
+ห้ามใช้ "ความพยายามนำไปสู่ความสำเร็จ" ทุกเรื่อง ต้องสอดคล้องกับพฤติกรรมของตัวละคร
 
 ============================================================
 14. JSON OUTPUT FORMAT
@@ -301,7 +287,8 @@ ACT 6 — MORAL: ข้อคิดที่เกิดจากเรื่อ
 \`\`\`
 
 สำคัญมาก:
-- เมื่อ conversationState = FULL_STORY ต้องมี fullStory ที่สมบูรณ์ครบ 250-400 คำเสมอ
+- เมื่อ conversationState = FULL_STORY ต้องมี fullStory ที่เป็นนิทานความยาว 250-400 คำ ใส่มาใน JSON เสมอ! ห้ามปล่อยว่าง
+- ห้ามพิมพ์เนื้อเรื่องนิทานไว้ข้างนอก JSON เด็ดขาด ให้ใส่ไว้ใน property "fullStory" ของ JSON เท่านั้น
 - preferred_name ต้องมาจากผู้เรียนเท่านั้น ห้ามสมมติ
 - ห้ามแสดง JSON ในรูปแบบที่ผู้เรียนเห็นในเนื้อหาการสนทนา
 
@@ -589,10 +576,44 @@ function executeAdaptiveStateMachine(
   }
 
   // ── STATE: FULL_STORY / SCRATCH_BLUEPRINT — ใช้ AI ──
-  // ถ้า fallback ถึงจุดนี้ แสดงว่า AI ไม่ตอบ ให้แจ้งผู้เรียน
+  // ถ้า fallback ถึงจุดนี้ และ ยืนยันเรื่องแล้ว ให้แต่งนิทานทันทีเลยเพื่อไม่ให้ค้าง
+  if (profile.confirmed_story_direction) {
+    const charName = profile.character_idea || profile.name || "สัตว์ป่าตัวน้อย";
+    const worldName = profile.story_world || profile.favorite_theme || "ป่าใหญ่แห่งจินตนาการ";
+    const hobbyName = profile.hobbies?.[0] || "การเดินทาง";
+    const problem = profile.story_problem || "พายุลูกใหญ่";
+    const trait = profile.personality_traits?.[0] || "ความกล้าหาญ";
+    
+    const generatedFullStory = `กาลครั้งหนึ่งนานมาแล้ว ในดินแดนอันกว้างใหญ่ที่เรียกว่า ${worldName} มีสิ่งมีชีวิตตัวหนึ่งชื่อว่า ${charName} อาศัยอยู่ ${charName} เป็นที่รู้จักของเพื่อนๆ ในป่าว่าเป็นผู้ที่มี${trait}อย่างเต็มเปี่ยม และมักจะใช้เวลาว่างไปกับ${hobbyName}อย่างมีความสุขเสมอ ทุกๆ วันของ ${charName} เต็มไปด้วยเสียงหัวเราะและรอยยิ้ม
+
+จนกระทั่งวันหนึ่ง ความสงบสุขก็ถูกทำลายลงเมื่อเกิดปัญหาใหญ่ขึ้น นั่นคือ ${problem} ซึ่งทำให้เพื่อนสัตว์ป่าทุกตัวตื่นตระหนกและไม่รู้จะทำอย่างไร หลายตัวพากันซ่อนตัวด้วยความหวาดกลัว แต่ ${charName} กลับคิดต่างออกไป แทนที่จะยอมแพ้ ${charName} ตัดสินใจลุกขึ้นสู้กับปัญหานั้น
+
+ด้วยความรู้และไหวพริบที่ได้จากการฝีกฝน${hobbyName}มาอย่างยาวนาน ${charName} เริ่มวางแผนและค่อยๆ ลงมือแก้ปัญหาทีละขั้นตอน แม้ว่าระหว่างทางจะเจออุปสรรคที่ทำให้เหนื่อยล้า แต่ด้วย${trait}ที่มีอยู่ ทำให้ ${charName} ไม่เคยก้าวถอยหลัง ${charName} ได้ชักชวนเพื่อนๆ ที่ซ่อนตัวอยู่ให้มาร่วมมือกัน 
+
+ในที่สุด ด้วยความพยายามและการรวมพลังของทุกคน ${problem} ก็ถูกแก้ไขจนสำเร็จ ดินแดน ${worldName} กลับมาสงบสุขและสวยงามยิ่งกว่าเดิม เพื่อนๆ ทุกตัวต่างขอบคุณ ${charName} และได้เรียนรู้ว่า ไม่ว่าปัญหาจะใหญ่แค่ไหน หากเรามีความตั้งใจและนำสิ่งที่เรารักมาใช้ให้เกิดประโยชน์ เราก็สามารถเอาชนะมันได้เสมอ`;
+
+    return {
+      reply: `นี่คือนิทานอีสปฉบับเต็มที่ลุงแต่งให้ครับ! 🎉\n\n📖 เรื่อง: การผจญภัยของ${charName}\n\n${generatedFullStory}\n\n💡 ข้อคิด: การใช้ความถนัดและความกล้าหาญ สามารถช่วยแก้ปัญหาที่ยากลำบากได้เสมอ\n\n${name} สามารถดูผลลัพธ์ พิมพ์ หรือดาวน์โหลดใบนิทานเก็บไว้ได้เลยนะ!`,
+      storyUpdate: {
+        ...buildUpdate("FULL_STORY", 4, profile),
+        title: `การผจญภัยของ${charName}`,
+        theme: worldName,
+        plotSummary: `${charName} ใช้ความสามารถเรื่อง${hobbyName} แก้ปัญหา${problem}ได้สำเร็จ`,
+        characters: [
+          { name: charName, role: "ตัวเอก", description: `ผู้กล้าที่มี${trait}และรัก${hobbyName}` }
+        ],
+        backdrops: [
+          { name: `ดินแดน${worldName}`, description: "ฉากของเรื่อง" }
+        ],
+        moralLesson: "ความกล้าหาญและการร่วมมือกันคือพลังที่ยิ่งใหญ่ที่สุด",
+        fullStory: generatedFullStory,
+      },
+    };
+  }
+
   return {
-    reply: `${name} ลุงกำลังรวบรวมทุกอย่างเพื่อสร้างนิทานให้อยู่นะ กรุณารอสักครู่นิดนึงครับ...`,
-    storyUpdate: buildUpdate("FULL_STORY", 3, profile),
+    reply: `${name} ลุงกำลังพยายามคิดเรื่องให้อยู่นะ ลองบอกลุงเพิ่มหน่อยว่าอยากให้เรื่องจบยังไงดีครับ?`,
+    storyUpdate: buildUpdate("STORY_DIRECTION", 3, profile),
   };
 }
 
@@ -743,22 +764,29 @@ confirmed_story_direction: ${storedProfile.confirmed_story_direction || false}
     let rawReply = "";
     let lastError: any = null;
 
-    const maxTokens = isStoryGenerationPhase ? 1500 : 900;
-    const temperature = isStoryGenerationPhase ? 0.8 : 0.65;
+    const maxTokens = isStoryGenerationPhase ? 2500 : 900;
+    const temperature = isStoryGenerationPhase ? 0.78 : 0.65;
 
     outerLoop: for (const key of keys) {
       const googleAI = createGoogleGenerativeAI({ apiKey: key });
 
       for (const modelName of CANDIDATE_MODELS) {
         try {
+          // หมดเวลา 25 วินาทีต่อ model เพื่อป้องกันรอนาน
+          const abortController = new AbortController();
+          const timeoutId = setTimeout(() => abortController.abort(), 25000);
+
           const result = await generateText({
             model: googleAI(modelName),
             system: SYSTEM_PROMPT,
             messages: fullMessages as any,
             temperature,
             maxOutputTokens: maxTokens,
-            maxRetries: 1,
+            maxRetries: 0,
+            abortSignal: abortController.signal,
           });
+
+          clearTimeout(timeoutId);
 
           if (result.text) {
             rawReply = result.text;
@@ -766,7 +794,8 @@ confirmed_story_direction: ${storedProfile.confirmed_story_direction || false}
           }
         } catch (err: any) {
           lastError = err;
-          console.warn(`Model ${modelName} failed:`, err?.message || err);
+          const reason = err?.name === "AbortError" ? "timeout 25s" : err?.message;
+          console.warn(`Model ${modelName} failed:`, reason);
         }
       }
     }
@@ -778,16 +807,29 @@ confirmed_story_direction: ${storedProfile.confirmed_story_direction || false}
 
     if (rawReply) {
       const jsonMatch = rawReply.match(/```(?:story_json|json)?\s*([\s\S]*?)\s*```/);
+      let jsonStr = "";
       if (jsonMatch) {
+        jsonStr = jsonMatch[1];
+        conversationalText = rawReply.replace(jsonMatch[0], "").trim();
+      } else {
+        const fallbackMatch = rawReply.match(/(\{[\s\S]*\})/);
+        if (fallbackMatch) {
+          jsonStr = fallbackMatch[1];
+          conversationalText = rawReply.replace(fallbackMatch[0], "").trim();
+        }
+      }
+
+      if (jsonStr) {
         try {
-          parsedStoryUpdate = JSON.parse(jsonMatch[1]);
-          conversationalText = rawReply.replace(jsonMatch[0], "").trim();
+          parsedStoryUpdate = JSON.parse(jsonStr);
           if (parsedStoryUpdate.fullStory) {
             fullStoryText = parsedStoryUpdate.fullStory;
           }
         } catch (e) {
-          console.warn("Failed to parse story_json:", e);
+          console.warn("Failed to parse JSON:", e);
         }
+      } else {
+        conversationalText = rawReply;
       }
     }
 

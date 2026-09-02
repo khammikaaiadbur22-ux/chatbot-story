@@ -118,16 +118,17 @@ export default function StoryChatPage() {
     let interval: NodeJS.Timeout;
     if (isWritingStory) {
       const startTime = Date.now();
-      const totalDuration = 20000; // 20 seconds
+      const totalDuration = 35000; // 35 seconds — เผื่อ model ช้า
       setStoryProgress(0);
-      setStoryTimeLeft(20);
+      setStoryTimeLeft(35);
       
       interval = setInterval(() => {
         const elapsed = Date.now() - startTime;
         let newProgress = Math.floor((elapsed / totalDuration) * 100);
-        if (newProgress >= 95) newProgress = 95;
+        // Cap ที่ 90 เพื่อให้ 100% เกิดขึ้นเมื่อได้ fullStory จริงๆ
+        if (newProgress >= 90) newProgress = 90;
         
-        let newTimeLeft = 20 - Math.floor(elapsed / 1000);
+        let newTimeLeft = 35 - Math.floor(elapsed / 1000);
         if (newTimeLeft <= 1) newTimeLeft = 1;
 
         setStoryProgress(newProgress);
@@ -138,6 +139,7 @@ export default function StoryChatPage() {
       if (interval) clearInterval(interval);
     };
   }, [isWritingStory]);
+
 
   const fetchStory = async (uid: string) => {
     setInitialLoading(true);
@@ -253,6 +255,12 @@ export default function StoryChatPage() {
                 : prev.backdrops,
             moralLesson: data.storyUpdate.moralLesson || prev.moralLesson,
           } as any));
+
+          // ✅ เซ็ต 100% เมื่อได้นิทานสมบูรณ์
+          const receivedStory = data.fullStory || data.storyUpdate?.fullStory;
+          if (receivedStory && receivedStory.length > 50) {
+            setStoryProgress(100);
+          }
         }
       }
     } catch (err: any) {
@@ -269,9 +277,12 @@ export default function StoryChatPage() {
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setLoading(false);
-      setIsWritingStory(false);
+      setTimeout(() => {
+        setIsWritingStory(false);
+      }, 800);
     }
   };
+
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -388,6 +399,12 @@ export default function StoryChatPage() {
             moralLesson: data.storyUpdate.moralLesson || prev.moralLesson,
           } as any));
 
+          // ✅ เซ็ต progress 100% เมื่อได้นิทานสมบูรณ์แล้ว
+          const receivedFullStory = data.fullStory || data.storyUpdate?.fullStory;
+          if (receivedFullStory && receivedFullStory.length > 50) {
+            setStoryProgress(100);
+          }
+
           if (data.step || data.storyUpdate.currentStep) {
             setCurrentStep(data.step || data.storyUpdate.currentStep);
           }
@@ -409,10 +426,14 @@ export default function StoryChatPage() {
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setLoading(false);
-      setIsWritingStory(false);
+      // หน่วงเล็กน้อยก่อนปิด writing state เพื่อให้ progress 100% ได้แสดงก่อน
+      setTimeout(() => {
+        setIsWritingStory(false);
+      }, 800);
       inputRef.current?.focus();
     }
   };
+
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -582,6 +603,7 @@ export default function StoryChatPage() {
               {isWritingStory ? (
                 <StoryGenerationProgressDashboard
                   status="processing"
+                  progressPercent={storyProgress}
                   studentName={studentNickname || "นักศึกษาคนเก่ง"}
                   storyTitle={storyData.title}
                 />
@@ -609,6 +631,7 @@ export default function StoryChatPage() {
                   onRetry={() => handleGenerateStory()}
                 />
               )}
+
             </div>
           ) : (
             /* STEPS 1-3: Split View Chat & Side Panel */

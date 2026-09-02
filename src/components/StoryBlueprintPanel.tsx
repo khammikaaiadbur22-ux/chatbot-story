@@ -519,8 +519,15 @@ export function StoryBlueprintPanel({
 
               {displayPlot && (
                 <div className="p-3 bg-[#FFF9EE] border border-[#F5DEBF] rounded-xl">
-                  <h4 className="font-bold text-[#4A3319] mb-1">📖 โครงเรื่อง:</h4>
+                  <h4 className="font-bold text-[#4A3319] mb-1">📖 โครงเรื่องย่อ:</h4>
                   <p className="text-[#665343] leading-relaxed whitespace-pre-wrap">{displayPlot}</p>
+                </div>
+              )}
+
+              {storyData.fullStory && (
+                <div className="p-4 bg-white border border-[#EADBC8] shadow-sm rounded-xl">
+                  <h4 className="font-bold text-[#FF8C1A] text-sm mb-2 text-center">✨ นิทานฉบับเต็ม ✨</h4>
+                  <p className="text-[#4A3319] leading-loose whitespace-pre-wrap">{storyData.fullStory}</p>
                 </div>
               )}
 

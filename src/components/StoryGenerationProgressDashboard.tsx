@@ -139,16 +139,17 @@ export function StoryGenerationProgressDashboard({
 
     if (status !== "processing") return;
 
-    // Progression: 12% -> 25% -> 40% -> 55% -> 70% -> 85% -> 94%
-    const stepTargetPercents = [12, 25, 40, 55, 70, 85, 94];
-    const stageDurationMs = [2500, 3000, 3500, 3500, 4000, 4500, 3000];
+    // Progression: 12% -> 25% -> 40% -> 55% -> 70% -> 85% -> 89%
+    const stepTargetPercents = [12, 25, 40, 55, 70, 85, 89];
+    // ยืดเวลาให้ครอบคลุม API ที่อาจใช้ถึง 35 วินาที
+    const stageDurationMs = [4000, 5000, 5000, 6000, 6000, 7000, 5000];
 
     const interval = setInterval(() => {
       setInternalPercent((prev) => {
-        if (prev >= 94) return 94; // Wait for real completion
+        if (prev >= 89) return 89; // รอ real completion เท่านั้น
         return prev + 1;
       });
-    }, 350);
+    }, 500);
 
     const stepTimers: NodeJS.Timeout[] = [];
     let accumulatedTime = 0;
@@ -179,8 +180,8 @@ export function StoryGenerationProgressDashboard({
     status === "completed"
       ? 100
       : propPercent !== undefined
-      ? propPercent
-      : Math.min(internalPercent, 95);
+      ? Math.min(propPercent, 100)
+      : Math.min(internalPercent, 89);
 
   const currentStageObj = STORY_GENERATION_STAGES[activeStep] || STORY_GENERATION_STAGES[0];
 
