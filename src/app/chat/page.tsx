@@ -226,6 +226,23 @@ export default function StoryChatPage() {
 
       const data = await res.json();
 
+      // ── ตรวจสอบ flag คำหยาบ — ถ้าพบให้แสดงข้อความเตือนและรีเฟรชหน้า ──
+      if (data.resetSession === true) {
+        const warningMsg: MessageItem = {
+          id: `warn-${Date.now()}`,
+          role: "assistant",
+          content: data.reply || "⚠️ ตรวจพบคำไม่เหมาะสม กำลังรีเซ็ตการสนทนา...",
+          step: 1,
+        };
+        setMessages([warningMsg]);
+        setIsLoading(false);
+        // รีเซ็ตและรีเฟรชหน้าหลังจาก 3 วินาที
+        setTimeout(() => {
+          window.location.reload();
+        }, 3000);
+        return;
+      }
+
       if (data.reply) {
         const assistantMsg: MessageItem = {
           id: `bot-${Date.now()}`,
@@ -345,6 +362,23 @@ export default function StoryChatPage() {
       }
 
       const data = await res.json();
+
+      // ── ตรวจสอบ flag คำหยาบ — ถ้าพบให้แสดงข้อความเตือนและรีเฟรชหน้า ──
+      if (data.resetSession === true) {
+        const warningMsg: MessageItem = {
+          id: `warn-${Date.now()}`,
+          role: "assistant",
+          content: data.reply || "⚠️ ตรวจพบคำไม่เหมาะสม กำลังรีเซ็ตการสนทนา...",
+          step: 1,
+        };
+        setMessages([warningMsg]);
+        setIsLoading(false);
+        // รีเซ็ตและรีเฟรชหน้าหลังจาก 3 วินาที
+        setTimeout(() => {
+          window.location.reload();
+        }, 3000);
+        return;
+      }
 
       if (data.reply) {
         const assistantMsg: MessageItem = {

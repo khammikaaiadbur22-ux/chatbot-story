@@ -332,6 +332,100 @@ function determineCurrentState(profile: UserProfileMemory): ConversationState {
 // ============================================================
 // ADAPTIVE FALLBACK STATE MACHINE
 // ============================================================
+
+// ============================================================
+// PROFANITY DETECTION — คำหยาบตามมาตรฐานราชบัณฑิตยสถาน
+// ============================================================
+const THAI_PROFANITY_LIST = [
+  // กลุ่มคำหยาบหลักตามราชบัณฑิตยสถาน
+  "ไอ้สัตว์", "อีสัตว์", "มึง", "กู", "ไอ้หน้าหี", "อีหน้าหี",
+  "สัตว์", "ควาย", "หน้าควาย", "โง่เหมือนควาย",
+  "เย็ด", "สวาท", "อีดอก", "ไอ้ดอก",
+  "หี", "หน้าหี", "จู๋", "จิ๋ม",
+  "ไอ้เหี้ย", "อีเหี้ย", "เหี้ย",
+  "ไอ้ชาติหมา", "อีชาติหมา",
+  "ไอ้บ้า", "อีบ้า",
+  "ไอ้โง่", "อีโง่",
+  "ไอ้ทึ่ม", "อีทึ่ม",
+  "ไอ้ไร้สมอง", "อีไร้สมอง",
+  "ฟักยู", "fuck", "shit", "damn", "bitch", "asshole", "motherfucker",
+  "ฟัค", "ชิต", "บิทช์",
+  "ไอ้สัด", "อีสัด",
+  "แดกด่าน", "แดกหัว",
+  "ตายไปซะ", "ตายไป",
+  "ระยำ", "อีระยำ", "ไอ้ระยำ",
+  "ชิงหมาแดก", "หมาแดก",
+  "ไอ้ทาส", "อีทาส",
+  "ไปตาย", "ไปดิ้นตาย",
+];
+
+/**
+ * ตรวจสอบว่าข้อความมีคำหยาบหรือไม่
+ * คืนค่า true ถ้าพบคำหยาบ
+ */
+function containsProfanity(text: string): boolean {
+  const lower = text.toLowerCase().trim();
+  return THAI_PROFANITY_LIST.some(word =>
+    lower.includes(word.toLowerCase())
+  );
+}
+
+// ============================================================
+// EVASIVE ANSWER DETECTION — ตรวจจับคำตอบแบบ "ให้ AI คิดแทน"
+// ============================================================
+const EVASIVE_PATTERNS = [
+  // บอกให้ AI ตัดสินใจแทน
+  "บอกมาเลย", "คิดมาให้เลย", "แต่งมาให้เลย", "ตัดสินใจให้หน่อย",
+  "คิดให้หน่อย", "บอกหน่อย", "ช่วยคิดให้", "ช่วยบอกให้",
+  "อะไรก็ได้", "แล้วแต่ลุง", "แล้วแต่คุณ", "แล้วแต่เลย",
+  "ไม่รู้", "ไม่ทราบ", "ไม่แน่ใจ", "ไม่คิดออก",
+  "เอาอะไรก็ได้", "ให้ลุงเลือก", "ลุงเลือกเลย", "คุณเลือกเลย",
+  "สุ่มมาก็ได้", "สุ่มเลย",
+  "ไม่สน", "ไม่สนใจ", "ไม่ขอตอบ",
+  "ทำไมต้องถาม", "ทำไมถาม",
+  "skip", "ข้ามไปได้เลย", "ข้าม",
+  "ไม่อยากตอบ", "ตอบไม่ได้", "ไม่รู้จะตอบยังไง",
+];
+
+/**
+ * ตรวจสอบว่าคำตอบของเด็กเป็นการหลบเลี่ยง / ให้ AI คิดแทนหรือเปลา่
+ */
+function isEvasiveAnswer(text: string): boolean {
+  const lower = text.toLowerCase().trim();
+  // ข้อความสั้นเกิน 2 คำมักเป็นการหลบเลี่ยง
+  const words = lower.split(/\s+/);
+  if (words.length <= 2 && (lower === "ไม่รู้" || lower === "ไม่" || lower === "ไม่ทราบ")) {
+    return true;
+  }
+  return EVASIVE_PATTERNS.some(pattern => lower.includes(pattern.toLowerCase()));
+}
+
+/**
+ * สร้างคำตอบกระตุ้นความคิดสร้างสรรค์เมื่อเด็กตอบแบบหลบเลี่ยง
+ */
+function buildCreativePrompt(currentState: string, name: string, profile: UserProfileMemory): string {
+  const hobby = profile.hobbies?.[0] || "สิ่งที่ชอบ";
+  const theme = profile.favorite_theme || profile.story_genre || "ผจญภัย";
+
+  switch (currentState) {
+    case "HOBBY":
+      return `${name} ลุงอยากรู้จักหนูจริงๆ เลยนะ 😊 ลองนึกถึงช่วงเวลาที่หนูรู้สึกสนุกที่สุดในชีวิตสิ...\n\nอาจเป็นกีฬา 🏅 งานศิลปะ 🎨 การเล่นเกม 🎮 หรือการช่วยเหลือผู้อื่น ❤️\nมีอะไรสักอย่างที่หนูอยากทำซ้ำๆ ทุกวันไหม?`;
+
+    case "INTEREST":
+      return `ลุงเข้าใจนะ บางทีตอบยากอยู่เหมือนกัน 😄\n\nแต่ลุงอยากรู้ว่า ในเรื่อง${hobby}ที่หนูชอบนั้น...\nมีช่วงไหนที่หนูรู้สึก "อยากรู้มากขึ้น" หรือ "อยากทำให้ดีขึ้น" บ้างไหม? ลองเล่าให้ลุงฟังหน่อยนะ`;
+
+    case "PERSONALITY":
+      return `ไม่เป็นไรเลย! ลุงจะช่วยให้นึกออก 🧠\n\nลองเลือก 1 อย่างที่ตรงกับหนูที่สุด:\n🔥 "หนูเป็นคนที่ชอบลงมือทำ ไม่ชอบรอ"\n🧩 "หนูชอบคิดวิเคราะห์ก่อนทำอะไร"\n❤️ "หนูชอบช่วยเหลือเพื่อนๆ"\n🌟 "หนูชอบสำรวจสิ่งใหม่ๆ ไม่กลัวลอง"\n\nหรือจะบอกแบบในแบบของหนูเองก็ได้!`;
+
+    case "IMAGINATION":
+    case "STORY_DIRECTION":
+      return `ลุงยังรอคำตอบของ${name}อยู่นะ 😊 เพราะนิทานของเราต้องมาจากความคิดของหนูเท่านั้นถึงจะพิเศษ!\n\nลองจินตนาการว่า... ถ้า${name}เป็นตัวละครในนิทาน หนูอยากให้ตัวละครนั้นอยู่ในโลกแบบไหน?\n\n🚀 โลกอนาคตมีเทคโนโลยี\n🧙 โลกเวทมนตร์\n🌊 โลกใต้ทะเล\n🕵️ โลกลึกลับเต็มไปด้วยปริศนา\n🏕️ โลกธรรมชาติ\n\nเลือกอย่างที่ชอบที่สุด หรือจะคิดโลกใหม่เองก็ได้!`;
+
+    default:
+      return `ลุงเข้าใจว่าบางทีนึกไม่ออก แต่ลุงอยากให้${name}ลองคิดดูอีกทีนะ 😊\n\nเพราะนิทานเรื่องนี้เป็นของ${name}จริงๆ ลุงแค่ช่วยเล่า ส่วนเนื้อเรื่องต้องมาจากหัวใจของหนูเท่านั้น ❤️\n\nลองนึกถึงสิ่งที่${name}ชอบที่สุด แล้วค่อยๆ เล่าให้ลุงฟังนะ`;
+  }
+}
+
 // ============================================================
 // KEYWORD EXTRACTION — ตัดคำสร้อยและดึงคีย์เวิร์ดสำคัญจากคำตอบ
 // ============================================================
@@ -484,8 +578,17 @@ function executeAdaptiveStateMachine(
 
   // ── STATE: HOBBY ──
   if (!profile.hobbies || profile.hobbies.length === 0) {
+    // ตรวจสอบว่าเด็กหลบเลี่ยงคำถามหรือไม่
+    if (isEvasiveAnswer(msg)) {
+      return {
+        reply: buildCreativePrompt("HOBBY", name, profile),
+        storyUpdate: buildUpdate("HOBBY", 1, profile),
+      };
+    }
+
     const hobby = cleanedHobby; // ใช้ keyword ที่สะอาดแล้ว
     profile.hobbies = [hobby];
+
 
     if (msgLower.includes("เกม") || msgLower.includes("game")) {
       return {
@@ -522,6 +625,13 @@ function executeAdaptiveStateMachine(
 
   // ── STATE: INTEREST ──
   if (!profile.interests || profile.interests.length === 0) {
+    // ตรวจสอบว่าเด็กหลบเลี่ยงคำถามหรือไม่
+    if (isEvasiveAnswer(msg)) {
+      return {
+        reply: buildCreativePrompt("INTEREST", name, profile),
+        storyUpdate: buildUpdate("INTEREST", 1, profile),
+      };
+    }
     profile.interests = [cleanedKeyword]; // ใช้ keyword ที่สะอาดแล้ว
     const hobby = profile.hobbies[0] || "งานอดิเรก";
 
@@ -533,6 +643,13 @@ function executeAdaptiveStateMachine(
 
   // ── STATE: PERSONALITY ──
   if (!profile.personality_traits || profile.personality_traits.length === 0) {
+    // ตรวจสอบว่าเด็กหลบเลี่ยงคำถามหรือไม่
+    if (isEvasiveAnswer(msg)) {
+      return {
+        reply: buildCreativePrompt("PERSONALITY", name, profile),
+        storyUpdate: buildUpdate("PERSONALITY", 1, profile),
+      };
+    }
     profile.personality_traits = [cleanedKeyword]; // ใช้ keyword ที่สะอาดแล้ว
     const hobbies = profile.hobbies?.join(", ") || "";
     const interests = profile.interests?.join(", ") || "";
@@ -545,6 +662,13 @@ function executeAdaptiveStateMachine(
 
   // ── STATE: IMAGINATION / STORY WORLD ──
   if (!profile.favorite_theme && !profile.story_genre) {
+    // ตรวจสอบว่าเด็กหลบเลี่ยงคำถามหรือไม่
+    if (isEvasiveAnswer(msg)) {
+      return {
+        reply: buildCreativePrompt("IMAGINATION", name, profile),
+        storyUpdate: buildUpdate("IMAGINATION", 2, profile),
+      };
+    }
     const worldKeyword = cleanedKeyword; // เช่น "เวทมนตร์" แทน "โลกเวทมนตร์แน่นอนค่ะ"
     profile.favorite_theme = worldKeyword;
     profile.story_genre = worldKeyword;
@@ -561,6 +685,13 @@ function executeAdaptiveStateMachine(
 
   // ── STATE: CHARACTER IDEA ──
   if (!profile.character_idea && !profile.character_preference) {
+    // ตรวจสอบว่าเด็กหลบเลี่ยงคำถามหรือไม่
+    if (isEvasiveAnswer(msg)) {
+      return {
+        reply: buildCreativePrompt("STORY_DIRECTION", name, profile),
+        storyUpdate: buildUpdate("STORY_DIRECTION", 2, profile),
+      };
+    }
     profile.character_idea = cleanedKeyword; // ใช้ keyword ที่สะอาดแล้ว
     profile.character_preference = cleanedKeyword;
 
@@ -729,6 +860,29 @@ export async function POST(req: NextRequest) {
         { error: "Message is required" },
         { status: 400 }
       );
+    }
+
+    // ── ตรวจสอบคำหยาบ — ถ้าพบให้รีเซ็ตและส่ง flag กลับ ──
+    if (containsProfanity(message)) {
+      // บันทึก message ที่มีคำหยาบลง DB (optional แต่ดีสำหรับ audit)
+      // แล้วคืน response พิเศษให้ frontend รีเซ็ตและ refresh
+      return NextResponse.json({
+        reply: "⚠️ ลุงต้องหยุดการสนทนานี้ก่อนนะ เพราะลุงสังเกตเห็นคำที่ไม่เหมาะสม ลุงหวังว่าครั้งหน้าเราจะคุยกันด้วยภาษาที่ดีกว่านี้นะ 🙏",
+        profanityDetected: true,  // flag พิเศษให้ frontend รับรู้
+        resetSession: true,        // flag สั่งให้รีเซ็ต session
+        storyUpdate: {
+          conversationState: "NAME",
+          step: 1,
+          userProfile: {},
+          title: "นิทานสร้างสรรค์",
+          theme: "",
+          characters: [],
+          backdrops: [],
+          moralLesson: "",
+          scratchPlan: [],
+          suggestedScratchBlocks: [],
+        },
+      });
     }
 
     let dbConversation = null;
