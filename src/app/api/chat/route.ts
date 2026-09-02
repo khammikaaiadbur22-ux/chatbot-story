@@ -332,6 +332,64 @@ function determineCurrentState(profile: UserProfileMemory): ConversationState {
 // ============================================================
 // ADAPTIVE FALLBACK STATE MACHINE
 // ============================================================
+// ============================================================
+// KEYWORD EXTRACTION — ตัดคำสร้อยและดึงคีย์เวิร์ดสำคัญจากคำตอบ
+// ============================================================
+function extractKeyword(text: string): string {
+  let cleaned = text.trim();
+
+  // 1. ตัดคำสร้อยท้ายประโยค (ค่ะ, ครับ, นะ, จ้า, เลย, นะครับ, นะค่ะ ฯลฯ)
+  cleaned = cleaned.replace(/\s*(นะครับ|นะค่ะ|ครับผม|ค่ะหนู|ครับ|ค่ะ|นะ|จ้า|เลย|ด้วย|ก็ได้|แน่นอน|แน่ๆ|เลยค่ะ|เลยครับ|แน่นอนค่ะ|แน่นอนครับ|ค่ะ้|ครับ้)\s*$/g, "").trim();
+
+  // 2. ตัดคำนำหน้าที่ไม่ใช่ keyword (ฉัน, ผม, หนู, ชอบ, อยาก, ต้องการ, เลือก, เอา, ขอ)
+  cleaned = cleaned.replace(/^(ฉัน|ผม|หนู|เรา|เขา|มัน)?(ชอบ|อยาก|ต้องการ|เลือก|เอา|ขอ|สนใจ|ชื่นชอบ|ถูกใจ|โปรด)\s*/g, "").trim();
+
+  // 3. แมปคำพ้องความหมายที่ผู้เรียนมักพิมพ์มาเป็นคีย์เวิร์ดมาตรฐาน
+  const synonymMap: Record<string, string> = {
+    "โลกเวทย์มนตร์": "เวทมนตร์",
+    "โลกเวทมนตร์": "เวทมนตร์",
+    "โลกแห่งเวทมนตร์": "เวทมนตร์",
+    "เวทมนต์": "เวทมนตร์",
+    "โลกอนาคต": "อนาคต",
+    "โลกใต้ทะเล": "ใต้ทะเล",
+    "โลกปริศนา": "ปริศนา",
+    "ช่วยเหลือสังคม": "ช่วยเหลือผู้อื่น",
+    "ช่วยเหลือผู้คน": "ช่วยเหลือผู้อื่น",
+    "ช่วยเหลือคน": "ช่วยเหลือผู้อื่น",
+    "อาหาร": "ทำอาหาร",
+    "กินอาหาร": "ชอบอาหาร",
+    "ดูการ์ตูน": "การ์ตูน",
+    "เล่นเกม": "เกม",
+    "ฟังเพลง": "เพลง",
+  };
+
+  for (const [key, value] of Object.entries(synonymMap)) {
+    if (cleaned.includes(key)) {
+      cleaned = cleaned.replace(key, value);
+    }
+  }
+
+  // 4. ถ้าประโยคมีคำว่า "โลก..." ให้ดึงเฉพาะสิ่งที่ตามหลัง "โลก"
+  const worldMatch = cleaned.match(/โลก([^\s,]+)/);
+  if (worldMatch) {
+    return worldMatch[1].replace(/\s*(ค่ะ|ครับ|นะ|จ้า|แน่นอน)$/g, "").trim();
+  }
+
+  return cleaned;
+}
+
+// ดึง hobby keyword จากประโยค เช่น "ชอบกินอาหาร" → "กินอาหาร" / "ชอบวาดรูป" → "วาดรูป"
+function extractHobbyKeyword(text: string): string {
+  const cleaned = extractKeyword(text);
+  // ถ้าประโยคยาวเกิน 20 ตัวอักษร ให้ดึงเฉพาะส่วนที่สำคัญ
+  if (cleaned.length > 20) {
+    // พยายามหา noun phrase หลัก
+    const importantMatch = cleaned.match(/(เกม|ฟุตบอล|บาส|กีฬา|วาด|ดนตรี|เพลง|อ่านหนังสือ|ทำอาหาร|ทำขนม|ท่องเที่ยว|ถ่ายรูป|ว่ายน้ำ|เต้น|ร้องเพลง|โค้ด|โปรแกรม|ช่วยเหลือ|ศิลปะ|หนัง|อนิเมะ|การ์ตูน)/);
+    if (importantMatch) return importantMatch[1];
+  }
+  return cleaned;
+}
+
 function executeAdaptiveStateMachine(
   message: string,
   profile: UserProfileMemory,
@@ -340,6 +398,11 @@ function executeAdaptiveStateMachine(
   const msg = message.trim();
   const msgLower = msg.toLowerCase();
   const name = profile.preferred_name || profile.name || "";
+
+  // keyword ที่สะอาดแล้ว พร้อมนำไปใช้ใน profile
+  const cleanedKeyword = extractKeyword(msg);
+  const cleanedHobby = extractHobbyKeyword(msg);
+
 
   // ── ดึงข้อมูลจากข้อความ ──
 
@@ -421,7 +484,7 @@ function executeAdaptiveStateMachine(
 
   // ── STATE: HOBBY ──
   if (!profile.hobbies || profile.hobbies.length === 0) {
-    const hobby = msg;
+    const hobby = cleanedHobby; // ใช้ keyword ที่สะอาดแล้ว
     profile.hobbies = [hobby];
 
     if (msgLower.includes("เกม") || msgLower.includes("game")) {
@@ -444,6 +507,11 @@ function executeAdaptiveStateMachine(
         reply: `เพลง 🎵 ลุงชอบคนที่รู้สึกกับดนตรีนะ มันแสดงว่าเราเป็นคนมีความรู้สึกลึกซึ้ง\n\nตอนฟังเพลง${name}ชอบแบบไหน? เพลงที่ทำให้รู้สึกตื่นเต้น เพลงที่ให้ความรู้สึกสงบ หรือเพลงที่เล่าเรื่องราว?`,
         storyUpdate: buildUpdate("INTEREST", 1, profile),
       };
+    } else if (msgLower.includes("ช่วยเหลือ") || msgLower.includes("สังคม") || msgLower.includes("อาสา")) {
+      return {
+        reply: `โอ้โห ${name}ชอบ${hobby}นี่น่าชื่นชมมากเลย ❤️ คนที่ชอบช่วยเหลือคนอื่นจะมีหัวใจที่ยิ่งใหญ่เสมอ\n\nที่${name}ชอบช่วยเหลือ...ชอบช่วยแบบไหนที่สุด? ช่วยเพื่อนที่มีปัญหา ช่วยน้องๆ เรียน หรือช่วยงานชุมชน?`,
+        storyUpdate: buildUpdate("INTEREST", 1, profile),
+      };
     } else {
       return {
         reply: `ชอบ${hobby}นี่ดูเป็นกิจกรรมที่เพลินและมีเสน่ห์เลยนะ 👍\n\nแล้วมีอะไรในเรื่อง${hobby}ที่${name}ชอบที่สุด? หรือมีสิ่งที่${name}กำลังสนใจเป็นพิเศษในช่วงนี้ไหม?`,
@@ -454,7 +522,7 @@ function executeAdaptiveStateMachine(
 
   // ── STATE: INTEREST ──
   if (!profile.interests || profile.interests.length === 0) {
-    profile.interests = [msg];
+    profile.interests = [cleanedKeyword]; // ใช้ keyword ที่สะอาดแล้ว
     const hobby = profile.hobbies[0] || "งานอดิเรก";
 
     return {
@@ -465,45 +533,46 @@ function executeAdaptiveStateMachine(
 
   // ── STATE: PERSONALITY ──
   if (!profile.personality_traits || profile.personality_traits.length === 0) {
-    profile.personality_traits = [msg];
+    profile.personality_traits = [cleanedKeyword]; // ใช้ keyword ที่สะอาดแล้ว
     const hobbies = profile.hobbies?.join(", ") || "";
     const interests = profile.interests?.join(", ") || "";
 
     return {
-      reply: `ลุงได้ยินแล้วนะ ${name}เป็นคนที่ ${msg} 😊\n\nถ้าถามว่าจินตนาการของ${name}ล่ะ... ถ้าเปิดประตูใบหนึ่งแล้วเจอโลกใหม่ อยากให้โลกนั้นเป็นแบบไหน?\n\n🚀 โลกอนาคตเต็มไปด้วยเทคโนโลยี\n🧙 โลกเวทมนตร์และสิ่งมหัศจรรย์\n🌊 โลกใต้ทะเลลึก\n🕵️ โลกที่เต็มไปด้วยปริศนาซ่อนอยู่\n\nหรือ${name}มีโลกที่อยากไปในแบบอื่น?`,
+      reply: `ลุงได้ยินแล้วนะ ${name}เป็นคนที่ ${cleanedKeyword} 😊\n\nถ้าถามว่าจินตนาการของ${name}ล่ะ... ถ้าเปิดประตูใบหนึ่งแล้วเจอโลกใหม่ อยากให้โลกนั้นเป็นแบบไหน?\n\n🚀 โลกอนาคตเต็มไปด้วยเทคโนโลยี\n🧙 โลกเวทมนตร์และสิ่งมหัศจรรย์\n🌊 โลกใต้ทะเลลึก\n🕵️ โลกที่เต็มไปด้วยปริศนาซ่อนอยู่\n\nหรือ${name}มีโลกที่อยากไปในแบบอื่น?`,
       storyUpdate: buildUpdate("IMAGINATION", 2, profile),
     };
   }
 
   // ── STATE: IMAGINATION / STORY WORLD ──
   if (!profile.favorite_theme && !profile.story_genre) {
-    profile.favorite_theme = msg;
-    profile.story_genre = msg;
+    const worldKeyword = cleanedKeyword; // เช่น "เวทมนตร์" แทน "โลกเวทมนตร์แน่นอนค่ะ"
+    profile.favorite_theme = worldKeyword;
+    profile.story_genre = worldKeyword;
 
     if (!profile.story_world) {
-      profile.story_world = msg;
+      profile.story_world = worldKeyword;
     }
 
     return {
-      reply: `โลก${msg}นี่น่าตื่นเต้นมากเลย! 🌟 ลุงเริ่มมองเห็นฉากในนิทานแล้ว\n\nถ้ามีตัวละครหลักที่เป็น "ตัวแทนจินตนาการ" ของ${name} ลุงอยากให้ตัวละครนั้นเป็นคนแบบไหน?\nเช่น นักประดิษฐ์ นักสำรวจ นักแก้ปริศนา นักดนตรี นักวาดภาพ หรืออะไรก็ได้ที่ ${name} รู้สึกว่าน่าสนใจ`,
+      reply: `โลก${worldKeyword}นี่น่าตื่นเต้นมากเลย! 🌟 ลุงเริ่มมองเห็นฉากในนิทานแล้ว\n\nถ้ามีตัวละครหลักที่เป็น "ตัวแทนจินตนาการ" ของ${name} ลุงอยากให้ตัวละครนั้นเป็นคนแบบไหน?\nเช่น นักประดิษฐ์ นักสำรวจ นักแก้ปริศนา นักดนตรี นักวาดภาพ หรืออะไรก็ได้ที่ ${name} รู้สึกว่าน่าสนใจ`,
       storyUpdate: buildUpdate("STORY_DIRECTION", 2, profile),
     };
   }
 
   // ── STATE: CHARACTER IDEA ──
   if (!profile.character_idea && !profile.character_preference) {
-    profile.character_idea = msg;
-    profile.character_preference = msg;
+    profile.character_idea = cleanedKeyword; // ใช้ keyword ที่สะอาดแล้ว
+    profile.character_preference = cleanedKeyword;
 
     return {
-      reply: `ตัวละครสาย${msg}นี่ลุงชอบเลย! 😄\n\nแล้วลุงอยากรู้ว่า ถ้าตัวละครนี้ต้องเผชิญกับ "ปัญหา" หรือ "ภารกิจ" สำคัญในเรื่อง ${name}อยากให้มันเป็นปัญหาประเภทไหน?\n\nเช่น ต้องช่วยเหลือใครสักคน ต้องแก้ไขสิ่งที่เสียหาย ต้องค้นหาบางสิ่ง หรืออยากให้ปัญหาเป็นอะไรก็ได้ที่${name}คิดถึง`,
+      reply: `ตัวละครสาย${cleanedKeyword}นี่ลุงชอบเลย! 😄\n\nแล้วลุงอยากรู้ว่า ถ้าตัวละครนี้ต้องเผชิญกับ "ปัญหา" หรือ "ภารกิจ" สำคัญในเรื่อง ${name}อยากให้มันเป็นปัญหาประเภทไหน?\n\nเช่น ต้องช่วยเหลือใครสักคน ต้องแก้ไขสิ่งที่เสียหาย ต้องค้นหาบางสิ่ง หรืออยากให้ปัญหาเป็นอะไรก็ได้ที่${name}คิดถึง`,
       storyUpdate: buildUpdate("STORY_DIRECTION", 2, profile),
     };
   }
 
   // ── STATE: STORY PROBLEM ──
   if (!profile.story_problem) {
-    profile.story_problem = msg;
+    profile.story_problem = cleanedKeyword; // ใช้ keyword ที่สะอาดแล้ว
 
     // มีข้อมูลครบแล้ว → สรุปก่อน STORY_CONFIRMATION
     const hobby = profile.hobbies?.join(", ") || "สิ่งที่ชอบ";
@@ -511,7 +580,7 @@ function executeAdaptiveStateMachine(
     const personality = profile.personality_traits?.join(", ") || "";
     const theme = profile.favorite_theme || profile.story_genre || "ผจญภัย";
     const character = profile.character_idea || profile.character_preference || "นักผจญภัย";
-    const problem = msg;
+    const problem = cleanedKeyword;
 
     return {
       reply: `ลุงเริ่มเห็นเรื่องของเราแล้วนะ 😊\n\n${profile.favorite_things?.length ? `💫 ${name}ชอบ: ${hobby} และ ${profile.favorite_things.join(", ")}` : `🎯 ${name}ชอบ: ${hobby}${interest ? ` และสนใจเรื่อง ${interest}` : ""}`}\n${personality ? `🧠 บุคลิก: ${personality}` : ""}\n🌍 โลกของเรื่อง: โลก${theme}\n🦸 ตัวละคร: ${character}\n⚠️ ปัญหา: ${problem}\n\nลุงกำลังนึกภาพตัวละครสาย${character}คนนึง ที่ต้อง${problem} ในโลก${theme}...\n\nแต่ตรงนี้ลุงยังไม่แต่งเรื่องนะ 😄 ลุงอยากถาม${name}สักอย่างว่า... อยากให้เรื่องนี้จบแบบไหน? ตัวละครเราสำเร็จแบบง่าย หรืออยากให้มีความพลิกผันสักอย่าง?`,
@@ -521,7 +590,7 @@ function executeAdaptiveStateMachine(
 
   // ── STATE: STORY GOAL / ENDING ──
   if (!profile.story_goal) {
-    profile.story_goal = msg;
+    profile.story_goal = cleanedKeyword; // ใช้ keyword ที่สะอาดแล้ว
 
     const theme = profile.favorite_theme || profile.story_genre || "ผจญภัย";
     const character = profile.character_idea || profile.character_preference || "นักผจญภัย";
@@ -530,7 +599,7 @@ function executeAdaptiveStateMachine(
     const personality = profile.personality_traits?.[0] || "ความมุ่งมั่น";
 
     return {
-      reply: `ลุงขอสรุปแนวเรื่องของเราก่อนนะ 📋\n\n━━━━━━━━━━━━━━━━━━━\n🦸 ตัวละครหลัก: ${character} ที่ได้รับแรงบันดาลใจจาก${hobby}และ${personality}\n🌍 โลกของเรื่อง: โลก${theme}\n⚠️ ปัญหา: ${problem}\n🎯 เป้าหมาย: ${msg}\n━━━━━━━━━━━━━━━━━━━\n\nถ้าแนวนี้โอเค ลุงจะเอาไปเขียนเป็นนิทานฉบับเต็มให้${name}เลย 😊\nหรือถ้าอยากเปลี่ยนตรงไหน บอกลุงได้เลยนะ!`,
+      reply: `ลุงขอสรุปแนวเรื่องของเราก่อนนะ 📋\n\n━━━━━━━━━━━━━━━━━━━\n🦸 ตัวละครหลัก: ${character} ที่ได้รับแรงบันดาลใจจาก${hobby}และ${personality}\n🌍 โลกของเรื่อง: โลก${theme}\n⚠️ ปัญหา: ${problem}\n🎯 เป้าหมาย: ${cleanedKeyword}\n━━━━━━━━━━━━━━━━━━━\n\nถ้าแนวนี้โอเค ลุงจะเอาไปเขียนเป็นนิทานฉบับเต็มให้${name}เลย 😊\nหรือถ้าอยากเปลี่ยนตรงไหน บอกลุงได้เลยนะ!`,
       storyUpdate: buildUpdate("STORY_CONFIRMATION", 3, profile),
     };
   }
