@@ -12,6 +12,9 @@ function getApiKeys(): string[] {
   if (process.env.GOOGLE_GENERATIVE_AI_API_KEY)
     keys.push(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
   if (process.env.GEMINI_API_KEY) keys.push(process.env.GEMINI_API_KEY);
+  if (process.env.GEMINI_API_KEY_3) keys.push(process.env.GEMINI_API_KEY_3);
+  if (process.env.GEMINI_API_KEY_4) keys.push(process.env.GEMINI_API_KEY_4);
+  if (process.env.GEMINI_API_KEY_5) keys.push(process.env.GEMINI_API_KEY_5);
   return keys.length > 0 ? keys : ["demo-key"];
 }
 
@@ -375,16 +378,11 @@ function containsProfanity(text: string): boolean {
 // ============================================================
 const EVASIVE_PATTERNS = [
   // บอกให้ AI ตัดสินใจแทน
-  "บอกมาเลย", "คิดมาให้เลย", "แต่งมาให้เลย", "ตัดสินใจให้หน่อย",
-  "คิดให้หน่อย", "บอกหน่อย", "ช่วยคิดให้", "ช่วยบอกให้",
-  "อะไรก็ได้", "แล้วแต่ลุง", "แล้วแต่คุณ", "แล้วแต่เลย",
-  "ไม่รู้", "ไม่ทราบ", "ไม่แน่ใจ", "ไม่คิดออก",
-  "เอาอะไรก็ได้", "ให้ลุงเลือก", "ลุงเลือกเลย", "คุณเลือกเลย",
-  "สุ่มมาก็ได้", "สุ่มเลย",
-  "ไม่สน", "ไม่สนใจ", "ไม่ขอตอบ",
-  "ทำไมต้องถาม", "ทำไมถาม",
-  "skip", "ข้ามไปได้เลย", "ข้าม",
-  "ไม่อยากตอบ", "ตอบไม่ได้", "ไม่รู้จะตอบยังไง",
+  "บอกมา", "คิดมาให้", "แต่งมาให้", "ตัดสินใจ",
+  "คิดให้", "บอกหน่อย", "ช่วยคิด", "ช่วยบอก",
+  "อะไรก็ได้", "แล้วแต่", "ไม่รู้", "ไม่ทราบ", "ไม่แน่ใจ", "คิดไม่ออก", "นึกไม่ออก",
+  "ให้ลุงเลือก", "เลือกเลย", "คุณเลือกเลย", "สุ่มมา", "สุ่มเลย",
+  "ไม่สน", "ข้าม", "ไม่อยากตอบ", "ตอบไม่ได้", "ไม่รู้จะตอบ",
 ];
 
 /**
