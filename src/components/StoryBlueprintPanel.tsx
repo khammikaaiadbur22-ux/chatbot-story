@@ -22,6 +22,7 @@ import {
   Activity,
 } from "lucide-react";
 import { StoryGenerationProgressDashboard } from "./StoryGenerationProgressDashboard";
+import { PdfExportButton } from "./PdfExportButton";
 
 export interface CharacterItem {
   name: string;
@@ -149,6 +150,12 @@ export function StoryBlueprintPanel({
           </div>
 
           <div className="flex items-center gap-1.5">
+            <PdfExportButton 
+              storyData={storyData} 
+              studentName={resolvedName} 
+              studentId={studentId || "-"} 
+            />
+            
             <button
               type="button"
               onClick={() => setShowPrintModal(true)}

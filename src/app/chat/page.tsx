@@ -22,6 +22,7 @@ import {
   StoryData,
 } from "@/components/StoryBlueprintPanel";
 import { StoryGenerationProgressDashboard } from "@/components/StoryGenerationProgressDashboard";
+import { WelcomeModal } from "@/components/WelcomeModal";
 
 interface MessageItem {
   id: string;
@@ -55,6 +56,7 @@ export default function StoryChatPage() {
   const [studentNickname, setStudentNickname] = useState<string>("");
   const [studentId, setStudentId] = useState<string>("");
   const [userAvatar, setUserAvatar] = useState<string>("/images/boy-avatar.jpg");
+  const [showWelcome, setShowWelcome] = useState(false);
 
   const [storyData, setStoryData] = useState<StoryData>({
     title: "นิทานสร้างสรรค์ของฉัน",
@@ -181,6 +183,22 @@ export default function StoryChatPage() {
     } finally {
       setInitialLoading(false);
     }
+  };
+
+  useEffect(() => {
+    if (!initialLoading) {
+      if (!studentNickname || !studentId) {
+        setShowWelcome(true);
+      } else {
+        setShowWelcome(false);
+      }
+    }
+  }, [initialLoading, studentNickname, studentId]);
+
+  const handleWelcomeComplete = (nickname: string, id: string) => {
+    setStudentNickname(nickname);
+    setStudentId(id);
+    setShowWelcome(false);
   };
 
   const handleGenerateStory = async (customPrompt?: string) => {
@@ -549,6 +567,8 @@ export default function StoryChatPage() {
 
   return (
     <div className="h-[100dvh] flex flex-col bg-[#FAF6EE] overflow-hidden">
+      {showWelcome && <WelcomeModal onComplete={handleWelcomeComplete} />}
+      
       {/* Top Navigation */}
       <Navbar studentNickname={studentNickname} studentId={studentId} />
 
