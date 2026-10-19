@@ -69,6 +69,8 @@ export function ChatApp() {
     if (storedNick) {
       setUserNickname(storedNick);
       setProfile((prev) => ({ ...prev, name: storedNick }));
+    } else {
+      setShowWelcomeModal(true);
     }
     if (storedStudentId) setStudentId(storedStudentId);
 
@@ -86,6 +88,7 @@ export function ChatApp() {
           setUserNickname(data.user.nickname);
           setProfile((prev) => ({ ...prev, name: data.user.nickname }));
           localStorage.setItem("story_user_nick", data.user.nickname);
+          setShowWelcomeModal(false);
         }
         if (data.user.studentId) {
           setStudentId(data.user.studentId);
@@ -256,11 +259,13 @@ export function ChatApp() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          userId,
+          studentId,
+          userNickname,
           conversationId: convId,
           message: text,
           history: updatedMessages,
           profile,
-          userNickname,
         }),
       });
 
@@ -406,6 +411,11 @@ export function ChatApp() {
         profile={profile}
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
+        onOpenProfileModal={() => {
+          setTempNickname(userNickname);
+          setTempStudentId(studentId);
+          setShowWelcomeModal(true);
+        }}
       />
 
       {/* Main Chat Area: Maximized Screen Space */}
@@ -445,6 +455,23 @@ export function ChatApp() {
 
           {/* Quick Header Actions */}
           <div className="flex items-center gap-2">
+            {/* Student Profile Pill */}
+            <button
+              type="button"
+              onClick={() => {
+                setTempNickname(userNickname);
+                setTempStudentId(studentId);
+                setShowWelcomeModal(true);
+              }}
+              className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-orange-50 hover:bg-orange-100/80 border border-orange-200/60 text-[#1c1714] text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs"
+              title="แก้ไขชื่อเล่นหรือรหัสนักศึกษา"
+            >
+              <User className="w-3.5 h-3.5 text-[#f2711c]" />
+              <span className="truncate max-w-[80px] sm:max-w-[130px]">
+                {userNickname || "ระบุชื่อหนู"}
+              </span>
+            </button>
+
             <button
               type="button"
               onClick={handleNewConversation}

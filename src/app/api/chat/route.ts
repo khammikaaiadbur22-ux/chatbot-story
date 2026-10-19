@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { generateReply, getSystemPrompt, parseReply } from "@/lib/ai";
 import { cleanName, containsProfanity, mergeProfile, readStoredMeta } from "@/lib/story";
 import { CONVERSATION_STEP, STORY_MESSAGE_STEP, type ChatMessage, type ChatResponse, type Profile } from "@/lib/types";
+import { saveStoryRecord } from "@/lib/store";
 
 export const maxDuration = 60;
 
@@ -18,7 +19,15 @@ const DEFAULT_TITLES = new Set([
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { conversationId, message, history: clientHistory, profile: clientProfile, userNickname } = body;
+    const {
+      conversationId,
+      message,
+      history: clientHistory,
+      profile: clientProfile,
+      userNickname,
+      userId,
+      studentId,
+    } = body;
     const text = typeof message === "string" ? message.trim().slice(0, 2000) : "";
 
     if (!text) {
@@ -109,12 +118,79 @@ ${knownProfile.name ? `(รู้ชื่อแล้ว ห้ามถาม�
     }
 
     const generatedMessageId = `asst-${Date.now()}`;
+    const studentIdentifier =
+      studentId || (clientProfile as any)?.studentId || dbConversation?.user?.studentId || "";
 
-    // Try to persist to DB if available
-    if (conversationId && dbConversation) {
-      try {
+    // 1. Always save to resilient storage so Teacher Dashboard sees it immediately
+    const convKey = conversationId || `conv_${Date.now()}`;
+    saveStoryRecord({
+      id: convKey,
+      nickname: name || nickname,
+      studentId: studentIdentifier,
+      title,
+      moralLesson: isStory ? parsed.story?.moral : undefined,
+      fullStory: isStory ? parsed.reply : (fullStory || undefined),
+      profile,
+      currentStep: isStory ? 4 : (profile.hobbies?.length || profile.likes?.length ? 2 : 1),
+    });
+
+    // 2. Persist to PostgreSQL DB if reachable
+    try {
+      if (conversationId) {
+        let currentUserId = dbConversation?.userId;
+        if (!currentUserId) {
+          const effectiveUsername = userId || (name ? `student_${name}` : `student_${Date.now()}`);
+          const user = await prisma.user.upsert({
+            where: { username: effectiveUsername },
+            update: {
+              nickname: name || nickname || undefined,
+              studentId: studentIdentifier || undefined,
+            },
+            create: {
+              username: effectiveUsername,
+              nickname: name || nickname || "",
+              studentId: studentIdentifier || null,
+              role: "STUDENT",
+            },
+          });
+          currentUserId = user.id;
+        } else if (name || studentIdentifier) {
+          await prisma.user.update({
+            where: { id: currentUserId },
+            data: {
+              nickname: name || nickname || undefined,
+              studentId: studentIdentifier || undefined,
+            },
+          }).catch(() => {});
+        }
+
+        if (!dbConversation) {
+          dbConversation = await prisma.conversation.upsert({
+            where: { id: conversationId },
+            update: {},
+            create: {
+              id: conversationId,
+              userId: currentUserId,
+              title,
+              theme: "นิทานอีสป",
+              currentStep: 1,
+            },
+          });
+        }
+
+        const charactersToSave = parsed.story?.characters
+          ? JSON.stringify(parsed.story.characters)
+          : dbConversation.characters || undefined;
+
         await prisma.$transaction([
-          prisma.message.create({ data: { conversationId, role: "user", content: text, step: 1 } }),
+          prisma.message.create({
+            data: {
+              conversationId,
+              role: "user",
+              content: text,
+              step: 1,
+            },
+          }),
           prisma.message.create({
             data: {
               conversationId,
@@ -127,22 +203,20 @@ ${knownProfile.name ? `(รู้ชื่อแล้ว ห้ามถาม�
             where: { id: conversationId },
             data: {
               title,
-              currentStep: isStory ? CONVERSATION_STEP.STORY_DONE : dbConversation.currentStep,
+              currentStep: isStory ? 4 : (profile.hobbies?.length || profile.likes?.length ? 2 : (dbConversation.currentStep || 1)),
               moralLesson: isStory ? parsed.story?.moral : dbConversation.moralLesson,
               status: isStory ? "COMPLETED" : dbConversation.status,
+              characters: charactersToSave,
               plotSummary: JSON.stringify({
                 profile,
-                fullStory: isStory ? parsed.reply : fullStory,
+                fullStory: isStory ? parsed.reply : (fullStory || ""),
               }),
             },
           }),
-          ...(name && name !== nickname
-            ? [prisma.user.update({ where: { id: dbConversation.userId }, data: { nickname: name } })]
-            : []),
         ]);
-      } catch (saveErr) {
-        console.warn("[api/chat] DB save skipped (client will hold state):", (saveErr as Error)?.message);
       }
+    } catch (saveErr) {
+      console.warn("[api/chat] DB save skipped (using local storage fallback):", (saveErr as Error)?.message);
     }
 
     return NextResponse.json({

@@ -63,7 +63,11 @@ export interface ParsedReply {
   reply: string;
   stage: ChatStage;
   profile: Profile | null;
-  story: { title: string; moral: string } | null;
+  story: {
+    title: string;
+    moral: string;
+    characters?: Array<{ name: string; role: string; description?: string }>;
+  } | null;
 }
 
 /** Split the model output into the visible reply and the hidden `<meta>{...}</meta>` block. */
@@ -74,14 +78,35 @@ export function parseReply(raw: string): ParsedReply {
   reply = reply.replace(/<meta>[\s\S]*$/i, "").trim();
 
   const result: ParsedReply = { reply, stage: "discover", profile: null, story: null };
-  if (!match) return result;
+  if (!match) {
+    // If model didn't return meta block, check if reply contains a fable title and moral
+    const moralMatch = reply.match(/>\s*\*\*ข้อคิด:?\*\*\s*([^\n]+)/i);
+    const titleMatch = reply.match(/##\s*([^\n]+)/);
+    if (moralMatch && titleMatch) {
+      result.stage = "story";
+      result.story = {
+        title: titleMatch[1].trim(),
+        moral: moralMatch[1].trim(),
+      };
+    }
+    return result;
+  }
 
   try {
     const json = JSON.parse(match[1].trim().replace(/^```(?:json)?|```$/g, ""));
     if (json.stage === "ready" || json.stage === "story") result.stage = json.stage;
     if (json.profile && typeof json.profile === "object") result.profile = json.profile;
     if (result.stage === "story" && json.story?.title) {
-      result.story = { title: String(json.story.title), moral: String(json.story.moral || "") };
+      let moral = String(json.story.moral || "").trim();
+      if (!moral) {
+        const moralMatch = reply.match(/>\s*\*\*ข้อคิด:?\*\*\s*([^\n]+)/i);
+        if (moralMatch) moral = moralMatch[1].trim();
+      }
+      result.story = {
+        title: String(json.story.title),
+        moral,
+        characters: Array.isArray(json.story.characters) ? json.story.characters : undefined,
+      };
     }
   } catch (error) {
     console.warn("[ai] could not parse meta block", error);

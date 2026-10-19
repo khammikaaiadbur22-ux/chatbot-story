@@ -31,6 +31,7 @@ interface SidebarProps {
   profile: Profile;
   isOpen: boolean;
   onToggle: () => void;
+  onOpenProfileModal?: () => void;
 }
 
 export function Sidebar({
@@ -44,6 +45,7 @@ export function Sidebar({
   profile,
   isOpen,
   onToggle,
+  onOpenProfileModal,
 }: SidebarProps) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -242,17 +244,25 @@ export function Sidebar({
 
         {/* Footer Student Info & Teacher Link */}
         <div className="p-3 border-t border-neutral-800 bg-[#14100e] flex items-center justify-between text-xs text-neutral-400">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 rounded-full bg-[#f2711c] text-white flex items-center justify-center text-xs font-bold shrink-0">
+          <div
+            onClick={onOpenProfileModal}
+            className="flex items-center gap-2 min-w-0 cursor-pointer hover:opacity-85 transition-opacity"
+            title="กดเพื่อแก้ไขชื่อเล่นและรหัสนักศึกษา"
+          >
+            <div className="w-7 h-7 rounded-full bg-[#f2711c] text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-xs">
               {userNickname ? userNickname.slice(0, 1).toUpperCase() : "หนู"}
             </div>
             <div className="truncate">
               <div className="font-bold text-white text-xs truncate">
-                {userNickname || "เด็กดี"}
+                {userNickname || "เด็กดี (แตะเพื่อใส่ชื่อ)"}
               </div>
-              {studentId && (
+              {studentId ? (
                 <div className="text-[10px] text-neutral-400 font-mono">
-                  {studentId}
+                  รหัส: {studentId}
+                </div>
+              ) : (
+                <div className="text-[9px] text-[#f2711c]">
+                  แตะเพื่อใส่รหัส ปวช.
                 </div>
               )}
             </div>

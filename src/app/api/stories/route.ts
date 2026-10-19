@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { cleanName, greetingFor, readStoredMeta } from "@/lib/story";
 import { STORY_MESSAGE_STEP, type ChatMessage, type ConversationSummary } from "@/lib/types";
+import { getAllStoryRecords } from "@/lib/store";
 
 async function findOrCreateUser(userId: string) {
   return prisma.user.upsert({
@@ -24,7 +25,13 @@ async function createConversation(userId: string, nickname: string) {
 
 function toSummary(c: { id: string; title: string; updatedAt: Date | string; currentStep: number }): ConversationSummary {
   const dateStr = typeof c.updatedAt === "string" ? c.updatedAt : c.updatedAt.toISOString();
-  return { id: c.id, title: c.title, updatedAt: dateStr, hasStory: c.currentStep >= 2 };
+  return {
+    id: c.id,
+    title: c.title,
+    updatedAt: dateStr,
+    hasStory: c.currentStep >= 4,
+    currentStep: c.currentStep || 1,
+  };
 }
 
 /**
@@ -36,6 +43,10 @@ export async function GET(req: NextRequest) {
   const params = req.nextUrl.searchParams;
   const conversationId = params.get("conversationId");
   const userId = params.get("userId");
+
+  const noCacheHeaders = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  };
 
   try {
     if (conversationId) {
@@ -52,46 +63,113 @@ export async function GET(req: NextRequest) {
             isStory: m.step === STORY_MESSAGE_STEP,
             createdAt: m.createdAt.toISOString(),
           }));
-          return NextResponse.json({ conversation: { ...toSummary(conv), messages } });
+          return NextResponse.json(
+            { conversation: { ...toSummary(conv), messages } },
+            { headers: noCacheHeaders }
+          );
         }
       } catch (e) {
         console.warn("[api/stories] DB error in get conversation:", (e as Error)?.message);
       }
-      return NextResponse.json({
-        conversation: {
-          id: conversationId,
-          title: "นิทานของฉัน",
-          updatedAt: new Date().toISOString(),
-          hasStory: false,
-          messages: [],
+      return NextResponse.json(
+        {
+          conversation: {
+            id: conversationId,
+            title: "นิทานของฉัน",
+            updatedAt: new Date().toISOString(),
+            hasStory: false,
+            currentStep: 1,
+            messages: [],
+          },
         },
-      });
+        { headers: noCacheHeaders }
+      );
     }
 
     if (params.get("role") === "TEACHER") {
       try {
+        const storiesMap = new Map<string, any>();
+
+        // 1. Add all resilient cached stories
+        const localStories = getAllStoryRecords();
+        for (const ls of localStories) {
+          storiesMap.set(ls.id, {
+            ...ls,
+            currentStep: ls.currentStep || 1,
+            hasStory: (ls.currentStep || 1) >= 4 || !!ls.fullStory,
+          });
+        }
+
+        // 2. Fetch from DB if online
         const all = await prisma.conversation.findMany({
           include: { user: true, _count: { select: { messages: true } } },
           orderBy: { updatedAt: "desc" },
         });
-        const stories = all.map((s) => {
+
+        for (const s of all) {
           const meta = readStoredMeta(s.plotSummary);
-          return {
+          const studentNick = cleanName(s.user.nickname) || cleanName(meta.profile.name) || "นักเรียน";
+          const studentId = s.user.studentId || (meta.profile as any)?.studentId || "";
+
+          let characters = [];
+          try { if (s.characters) characters = JSON.parse(s.characters); } catch {}
+          let backdrops = [];
+          try { if (s.backdrops) backdrops = JSON.parse(s.backdrops); } catch {}
+          let scratchPlan = [];
+          try { if (s.scratchPlan) scratchPlan = JSON.parse(s.scratchPlan); } catch {}
+
+          storiesMap.set(s.id, {
             ...toSummary(s),
+            currentStep: s.currentStep || 1,
+            theme: s.theme || "นิทานอีสป",
             moralLesson: s.moralLesson || "",
-            fullStory: meta.fullStory,
+            fullStory: meta.fullStory || s.plotSummary || "",
+            plotSummary: meta.fullStory || s.plotSummary || "",
+            characters,
+            backdrops,
+            scratchPlan,
             profile: meta.profile,
-            messageCount: s._count.messages,
-            student: {
-              nickname: cleanName(s.user.nickname) || cleanName(meta.profile.name) || "ไม่ระบุชื่อ",
-              studentId: s.user.studentId || "",
+            messageCount: s._count?.messages || 0,
+            user: {
+              id: s.user.id,
+              username: s.user.username,
+              studentId,
+              nickname: studentNick,
             },
-          };
-        });
-        return NextResponse.json({ stories, dbPaused: false });
+            student: {
+              nickname: studentNick,
+              studentId,
+            },
+          });
+        }
+
+        let sorted = Array.from(storiesMap.values()).sort(
+          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        );
+
+        // Filter out untouched sessions (0 or 1 message and no nickname) to keep dashboard clean
+        const activeStories = sorted.filter(
+          (s) =>
+            (s.messageCount && s.messageCount >= 2) ||
+            (s.currentStep && s.currentStep >= 2) ||
+            s.moralLesson ||
+            (s.user?.nickname && s.user.nickname !== "นักเรียน") ||
+            s.user?.studentId
+        );
+
+        const returnList = activeStories.length > 0 ? activeStories : sorted;
+
+        return NextResponse.json(
+          { stories: returnList, dbPaused: false },
+          { headers: noCacheHeaders }
+        );
       } catch (e) {
         console.warn("[api/stories] DB error in teacher view:", (e as Error)?.message);
-        return NextResponse.json({ stories: [], dbPaused: true, dbError: (e as Error)?.message });
+        const fallbackStories = getAllStoryRecords();
+        return NextResponse.json(
+          { stories: fallbackStories, dbPaused: true, dbError: (e as Error)?.message },
+          { headers: noCacheHeaders }
+        );
       }
     }
 

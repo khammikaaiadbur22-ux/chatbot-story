@@ -21,6 +21,7 @@ export interface ConversationSummary {
   title: string;
   updatedAt: string;
   hasStory: boolean;
+  currentStep?: number;
 }
 
 export type ChatStage = "discover" | "ready" | "story";
@@ -37,5 +38,10 @@ export interface ChatResponse {
 /** Marker stored in `Message.step` to flag assistant messages that contain a finished fable. */
 export const STORY_MESSAGE_STEP = 9;
 
-/** `Conversation.currentStep` values. */
-export const CONVERSATION_STEP = { DISCOVER: 1, STORY_DONE: 2 } as const;
+/** `Conversation.currentStep` values matching the Teacher Studio progression. */
+export const CONVERSATION_STEP = {
+  DISCOVER: 1,
+  PROFILE: 2,
+  PLANNING: 3,
+  STORY_DONE: 4,
+} as const;

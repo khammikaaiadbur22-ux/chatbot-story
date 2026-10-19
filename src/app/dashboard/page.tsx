@@ -111,7 +111,9 @@ export default function TeacherDashboard() {
   const fetchStories = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/stories?role=TEACHER");
+      const res = await fetch(`/api/stories?role=TEACHER&t=${Date.now()}`, {
+        cache: "no-store",
+      });
       const data = await res.json();
       setDbPaused(!!data.dbPaused);
       if (data.stories) {
@@ -126,18 +128,18 @@ export default function TeacherDashboard() {
   };
 
   const filteredStories = stories.filter((s) => {
-    const studentNick = s.user.nickname || s.user.username || "";
-    const studentId = s.user.studentId || s.user.username || "";
+    const studentNick = s.user?.nickname || (s as any).student?.nickname || s.user?.username || "";
+    const studentId = s.user?.studentId || (s as any).student?.studentId || s.user?.username || "";
 
     const matchesSearch =
       studentNick.toLowerCase().includes(searchTerm.toLowerCase()) ||
       studentId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (s.title || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       (s.moralLesson &&
         s.moralLesson.toLowerCase().includes(searchTerm.toLowerCase()));
 
     const matchesStep =
-      filterStep === "ALL" || s.currentStep.toString() === filterStep;
+      filterStep === "ALL" || s.currentStep?.toString() === filterStep;
 
     return matchesSearch && matchesStep;
   });
@@ -157,16 +159,16 @@ export default function TeacherDashboard() {
     ];
 
     const rows = filteredStories.map((s) => [
-      `"${s.user.studentId || s.user.username}"`,
-      `"${s.user.nickname || s.user.username}"`,
+      `"${s.user?.studentId || (s as any).student?.studentId || s.user?.username || ""}"`,
+      `"${s.user?.nickname || (s as any).student?.nickname || s.user?.username || "นักเรียน"}"`,
       `"ปวช. 1"`,
-      `"${s.title}"`,
+      `"${s.title || "นิทานของฉัน"}"`,
       `"${s.theme || ""}"`,
-      `"ขั้นที่ ${s.currentStep}"`,
+      `"ขั้นที่ ${s.currentStep || 1}"`,
       `"${(s.moralLesson || "").replace(/"/g, '""')}"`,
-      s.characters.length,
-      s.scratchPlan.length,
-      new Date(s.updatedAt).toLocaleString("th-TH"),
+      s.characters?.length || 0,
+      s.scratchPlan?.length || 0,
+      new Date(s.updatedAt || Date.now()).toLocaleString("th-TH"),
     ]);
 
     const csvContent =
@@ -458,8 +460,16 @@ export default function TeacherDashboard() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredStories.map((story) => {
-              const studentNick = story.user.nickname || story.user.username;
-              const studentId = story.user.studentId || story.user.username;
+              const studentNick =
+                story.user?.nickname ||
+                (story as any).student?.nickname ||
+                story.user?.username ||
+                "นักเรียน";
+              const studentId =
+                story.user?.studentId ||
+                (story as any).student?.studentId ||
+                story.user?.username ||
+                "";
 
               return (
                 <div
@@ -471,15 +481,17 @@ export default function TeacherDashboard() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-xl bg-[#EBF5FF] text-[#4C97FF] border border-[#CDE5FE] flex items-center justify-center font-bold text-xs">
-                          {studentNick[0]?.toUpperCase()}
+                          {studentNick[0]?.toUpperCase() || "S"}
                         </div>
                         <div>
                           <div className="font-bold text-xs text-[#2C221E]">
                             {studentNick}
                           </div>
-                          <div className="text-[10px] text-[#A68F7A] font-mono">
-                            รหัส: {studentId}
-                          </div>
+                          {studentId && (
+                            <div className="text-[10px] text-[#A68F7A] font-mono">
+                              รหัส: {studentId}
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -492,14 +504,14 @@ export default function TeacherDashboard() {
                             : "bg-[#FFAB19]/15 text-[#D47E00] border border-[#FFAB19]/30"
                         }`}
                       >
-                        ขั้นที่ {story.currentStep}
+                        ขั้นที่ {story.currentStep || 1}
                       </span>
                     </div>
 
                     {/* Title & Theme */}
                     <div>
                       <h3 className="font-bold text-base text-[#4A3319] line-clamp-1 group-hover:text-[#4C97FF] transition-colors">
-                        {story.title}
+                        {story.title || "นิทานของฉัน"}
                       </h3>
                       <p className="text-[11px] text-[#8C7662]">
                         ธีม: {story.theme || "นิทานอีสป"}
@@ -526,11 +538,11 @@ export default function TeacherDashboard() {
                     <div className="flex items-center gap-3 text-xs text-[#8C7662] pt-1">
                       <span className="flex items-center gap-1">
                         <Users className="w-3.5 h-3.5 text-[#4C97FF]" />
-                        <strong>{story.characters.length}</strong> ตัวละคร
+                        <strong>{story.characters?.length || 0}</strong> ตัวละคร
                       </span>
                       <span className="flex items-center gap-1">
                         <Code2 className="w-3.5 h-3.5 text-[#0FBD8C]" />
-                        <strong>{story.scratchPlan.length}</strong> แผนบล็อก
+                        <strong>{story.scratchPlan?.length || 0}</strong> แผนบล็อก
                       </span>
                     </div>
                   </div>
@@ -558,14 +570,20 @@ export default function TeacherDashboard() {
                 <div>
                   <h3 className="font-bold text-lg">
                     ผลงานนิทานของ:{" "}
-                    {selectedStory.user.nickname || selectedStory.user.username}{" "}
+                    {selectedStory.user?.nickname ||
+                      (selectedStory as any).student?.nickname ||
+                      selectedStory.user?.username ||
+                      "นักเรียน"}{" "}
                     (รหัส:{" "}
-                    {selectedStory.user.studentId || selectedStory.user.username}
+                    {selectedStory.user?.studentId ||
+                      (selectedStory as any).student?.studentId ||
+                      selectedStory.user?.username ||
+                      "-"}
                     ) - ปวช. 1
                   </h3>
                   <p className="text-xs text-white/80">
                     อัปเดตล่าสุด:{" "}
-                    {new Date(selectedStory.updatedAt).toLocaleString("th-TH")}
+                    {new Date(selectedStory.updatedAt || Date.now()).toLocaleString("th-TH")}
                   </p>
                 </div>
                 <button
@@ -579,19 +597,27 @@ export default function TeacherDashboard() {
               <div className="p-6 overflow-y-auto max-h-[70vh]">
                 <StoryBlueprintPanel
                   storyData={{
-                    title: selectedStory.title,
-                    theme: selectedStory.theme,
-                    currentStep: selectedStory.currentStep,
-                    characters: selectedStory.characters,
-                    backdrops: selectedStory.backdrops,
-                    plotSummary: selectedStory.plotSummary,
-                    moralLesson: selectedStory.moralLesson,
+                    title: selectedStory.title || "นิทานของฉัน",
+                    theme: selectedStory.theme || "นิทานอีสป",
+                    currentStep: selectedStory.currentStep || 1,
+                    characters: selectedStory.characters || [],
+                    backdrops: selectedStory.backdrops || [],
+                    plotSummary: selectedStory.plotSummary || "",
+                    fullStory: (selectedStory as any).fullStory || selectedStory.plotSummary || "",
+                    moralLesson: selectedStory.moralLesson || "",
+                    userProfile: (selectedStory as any).profile,
                   }}
                   studentName={
-                    selectedStory.user.nickname || selectedStory.user.username
+                    selectedStory.user?.nickname ||
+                    (selectedStory as any).student?.nickname ||
+                    selectedStory.user?.username ||
+                    "นักเรียน"
                   }
                   studentId={
-                    selectedStory.user.studentId || selectedStory.user.username
+                    selectedStory.user?.studentId ||
+                    (selectedStory as any).student?.studentId ||
+                    selectedStory.user?.username ||
+                    ""
                   }
                 />
               </div>
