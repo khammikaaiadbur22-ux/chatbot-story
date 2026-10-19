@@ -3,20 +3,26 @@ import type { ModelMessage } from "ai";
 import { prisma } from "@/lib/prisma";
 import { generateReply, getSystemPrompt, parseReply } from "@/lib/ai";
 import { cleanName, containsProfanity, mergeProfile, readStoredMeta } from "@/lib/story";
-import { CONVERSATION_STEP, STORY_MESSAGE_STEP, type ChatResponse } from "@/lib/types";
+import { CONVERSATION_STEP, STORY_MESSAGE_STEP, type ChatMessage, type ChatResponse, type Profile } from "@/lib/types";
 
 export const maxDuration = 60;
 
 const HISTORY_LIMIT = 40;
-const DEFAULT_TITLES = new Set(["นิทานเรื่องใหม่", "นิทานของฉัน", "นิทานเรื่องใหม่ของฉัน", "นิทานอีสปเรื่องใหม่ของฉัน"]);
+const DEFAULT_TITLES = new Set([
+  "นิทานเรื่องใหม่",
+  "นิทานของฉัน",
+  "นิทานเรื่องใหม่ของฉัน",
+  "นิทานอีสปเรื่องใหม่ของฉัน",
+]);
 
 export async function POST(req: NextRequest) {
   try {
-    const { conversationId, message } = await req.json();
+    const body = await req.json();
+    const { conversationId, message, history: clientHistory, profile: clientProfile, userNickname } = body;
     const text = typeof message === "string" ? message.trim().slice(0, 2000) : "";
 
-    if (!conversationId || !text) {
-      return NextResponse.json({ error: "ต้องมี conversationId และข้อความ" }, { status: 400 });
+    if (!text) {
+      return NextResponse.json({ error: "ต้องมีข้อความ" }, { status: 400 });
     }
 
     if (containsProfanity(text)) {
@@ -25,25 +31,39 @@ export async function POST(req: NextRequest) {
         stage: "discover",
         isStory: false,
         title: "",
-        profile: {},
+        profile: clientProfile || {},
         messageId: `warn-${Date.now()}`,
       } satisfies ChatResponse);
     }
 
-    const conversation = await prisma.conversation.findUnique({
-      where: { id: conversationId },
-      include: {
-        user: true,
-        messages: { orderBy: { createdAt: "desc" }, take: HISTORY_LIMIT },
-      },
-    });
-    if (!conversation) {
-      return NextResponse.json({ error: "ไม่พบห้องสนทนานี้" }, { status: 404 });
+    // Try to load conversation and history from DB, but gracefully fall back to client state
+    let dbConversation: any = null;
+    let storedProfile: Profile = clientProfile || {};
+    let fullStory = "";
+    let effectiveTitle = "นิทานของฉัน";
+
+    if (conversationId) {
+      try {
+        dbConversation = await prisma.conversation.findUnique({
+          where: { id: conversationId },
+          include: {
+            user: true,
+            messages: { orderBy: { createdAt: "desc" }, take: HISTORY_LIMIT },
+          },
+        });
+        if (dbConversation) {
+          const stored = readStoredMeta(dbConversation.plotSummary);
+          storedProfile = mergeProfile(stored.profile, clientProfile);
+          fullStory = stored.fullStory;
+          effectiveTitle = dbConversation.title;
+        }
+      } catch (dbErr) {
+        console.warn("[api/chat] DB load skipped (using client memory):", (dbErr as Error)?.message);
+      }
     }
 
-    const stored = readStoredMeta(conversation.plotSummary);
-    const nickname = cleanName(conversation.user.nickname);
-    const knownProfile = mergeProfile(stored.profile, { name: stored.profile.name || nickname });
+    const nickname = cleanName(dbConversation?.user?.nickname || userNickname || storedProfile.name);
+    const knownProfile = mergeProfile(storedProfile, { name: storedProfile.name || nickname });
 
     const system = `${getSystemPrompt()}
 
@@ -51,11 +71,27 @@ export async function POST(req: NextRequest) {
 ${JSON.stringify(knownProfile)}
 ${knownProfile.name ? `(รู้ชื่อแล้ว ห้ามถามชื่ออีก)` : "(ยังไม่รู้ชื่อ)"}`;
 
-    const history: ModelMessage[] = conversation.messages
-      .reverse()
-      .map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.content }));
-    // Gemini expects the conversation to start with a user turn.
-    while (history.length && history[0].role === "assistant") history.shift();
+    // Build history from DB or client
+    let history: ModelMessage[] = [];
+    if (dbConversation && dbConversation.messages?.length > 0) {
+      history = dbConversation.messages
+        .slice()
+        .reverse()
+        .map((m: any) => ({
+          role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
+          content: m.content,
+        }));
+    } else if (Array.isArray(clientHistory) && clientHistory.length > 0) {
+      history = clientHistory.map((m: ChatMessage) => ({
+        role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
+        content: m.content,
+      }));
+    }
+
+    // Gemini expects the conversation to start with a user turn
+    while (history.length && history[0].role === "assistant") {
+      history.shift();
+    }
 
     const raw = await generateReply(system, [...history, { role: "user", content: text }]);
     const parsed = parseReply(raw);
@@ -65,34 +101,49 @@ ${knownProfile.name ? `(รู้ชื่อแล้ว ห้ามถาม�
     const isStory = parsed.stage === "story" && !!parsed.story;
     const name = cleanName(profile.name);
 
-    let title = conversation.title;
-    if (isStory && parsed.story) title = parsed.story.title;
-    else if (name && DEFAULT_TITLES.has(title)) title = `นิทานของ${name}`;
+    let title = effectiveTitle;
+    if (isStory && parsed.story) {
+      title = parsed.story.title;
+    } else if (name && DEFAULT_TITLES.has(title)) {
+      title = `นิทานของ${name}`;
+    }
 
-    const [, assistantMessage] = await prisma.$transaction([
-      prisma.message.create({ data: { conversationId, role: "user", content: text, step: 1 } }),
-      prisma.message.create({
-        data: {
-          conversationId,
-          role: "assistant",
-          content: parsed.reply,
-          step: isStory ? STORY_MESSAGE_STEP : 1,
-        },
-      }),
-      prisma.conversation.update({
-        where: { id: conversationId },
-        data: {
-          title,
-          currentStep: isStory ? CONVERSATION_STEP.STORY_DONE : conversation.currentStep,
-          moralLesson: isStory ? parsed.story?.moral : conversation.moralLesson,
-          status: isStory ? "COMPLETED" : conversation.status,
-          plotSummary: JSON.stringify({ profile, fullStory: isStory ? parsed.reply : stored.fullStory }),
-        },
-      }),
-      ...(name && name !== nickname
-        ? [prisma.user.update({ where: { id: conversation.userId }, data: { nickname: name } })]
-        : []),
-    ]);
+    const generatedMessageId = `asst-${Date.now()}`;
+
+    // Try to persist to DB if available
+    if (conversationId && dbConversation) {
+      try {
+        await prisma.$transaction([
+          prisma.message.create({ data: { conversationId, role: "user", content: text, step: 1 } }),
+          prisma.message.create({
+            data: {
+              conversationId,
+              role: "assistant",
+              content: parsed.reply,
+              step: isStory ? STORY_MESSAGE_STEP : 1,
+            },
+          }),
+          prisma.conversation.update({
+            where: { id: conversationId },
+            data: {
+              title,
+              currentStep: isStory ? CONVERSATION_STEP.STORY_DONE : dbConversation.currentStep,
+              moralLesson: isStory ? parsed.story?.moral : dbConversation.moralLesson,
+              status: isStory ? "COMPLETED" : dbConversation.status,
+              plotSummary: JSON.stringify({
+                profile,
+                fullStory: isStory ? parsed.reply : fullStory,
+              }),
+            },
+          }),
+          ...(name && name !== nickname
+            ? [prisma.user.update({ where: { id: dbConversation.userId }, data: { nickname: name } })]
+            : []),
+        ]);
+      } catch (saveErr) {
+        console.warn("[api/chat] DB save skipped (client will hold state):", (saveErr as Error)?.message);
+      }
+    }
 
     return NextResponse.json({
       reply: parsed.reply,
@@ -100,10 +151,10 @@ ${knownProfile.name ? `(รู้ชื่อแล้ว ห้ามถาม�
       isStory,
       title,
       profile,
-      messageId: assistantMessage.id,
+      messageId: generatedMessageId,
     } satisfies ChatResponse);
   } catch (error) {
-    console.error("[api/chat]", error);
+    console.error("[api/chat] Error:", error);
     return NextResponse.json(
       { error: "ลุงเชื่อมต่อไม่ได้ชั่วคราว ลองส่งใหม่อีกครั้งนะ" },
       { status: 503 }

@@ -30,8 +30,16 @@ export function ChatApp() {
   const [studentId, setStudentId] = useState<string>("");
   const [profile, setProfile] = useState<Profile>({});
 
-  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  // Default active conversation so user is never blocked from chatting
+  const [conversations, setConversations] = useState<ConversationSummary[]>([
+    {
+      id: "conv_default",
+      title: "นิทานของฉัน",
+      updatedAt: new Date().toISOString(),
+      hasStory: false,
+    },
+  ]);
+  const [activeConversationId, setActiveConversationId] = useState<string>("conv_default");
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
   const [inputText, setInputText] = useState("");
   const [loading, setLoading] = useState(false);
@@ -58,7 +66,10 @@ export function ChatApp() {
 
     const storedNick = localStorage.getItem("story_user_nick") || "";
     const storedStudentId = localStorage.getItem("story_user_studentid") || "";
-    if (storedNick) setUserNickname(storedNick);
+    if (storedNick) {
+      setUserNickname(storedNick);
+      setProfile((prev) => ({ ...prev, name: storedNick }));
+    }
     if (storedStudentId) setStudentId(storedStudentId);
 
     loadUserAndConversations(storedId);
@@ -73,6 +84,7 @@ export function ChatApp() {
       if (data.user) {
         if (data.user.nickname) {
           setUserNickname(data.user.nickname);
+          setProfile((prev) => ({ ...prev, name: data.user.nickname }));
           localStorage.setItem("story_user_nick", data.user.nickname);
         }
         if (data.user.studentId) {
@@ -86,12 +98,9 @@ export function ChatApp() {
         const firstConvId = data.conversations[0].id;
         setActiveConversationId(firstConvId);
         loadMessages(firstConvId);
-      } else {
-        // If no conversations exist, prompt user for name
-        setShowWelcomeModal(true);
       }
     } catch (err) {
-      console.error("Error loading conversations:", err);
+      console.warn("Notice: Continuing with local conversation state:", err);
     }
   };
 
@@ -100,11 +109,11 @@ export function ChatApp() {
       const res = await fetch(`/api/stories?conversationId=${encodeURIComponent(convId)}`);
       if (!res.ok) return;
       const data = await res.json();
-      if (data.conversation?.messages) {
+      if (data.conversation?.messages && data.conversation.messages.length > 0) {
         setMessages(data.conversation.messages);
       }
     } catch (err) {
-      console.error("Error loading messages:", err);
+      console.warn("Could not fetch remote messages, keeping current session:", err);
     }
   };
 
@@ -128,46 +137,53 @@ export function ChatApp() {
   };
 
   const handleNewConversation = async () => {
-    if (!userId) return;
-    try {
-      const res = await fetch("/api/stories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.conversation) {
-        setConversations((prev) => [data.conversation, ...prev]);
-        setActiveConversationId(data.conversation.id);
-        loadMessages(data.conversation.id);
+    const newConvId = `conv_${Date.now()}`;
+    const newConv: ConversationSummary = {
+      id: newConvId,
+      title: userNickname ? `นิทานของ${userNickname}` : "นิทานเรื่องใหม่",
+      updatedAt: new Date().toISOString(),
+      hasStory: false,
+    };
+
+    setConversations((prev) => [newConv, ...prev]);
+    setActiveConversationId(newConvId);
+    setMessages([]);
+
+    if (userId) {
+      try {
+        await fetch("/api/stories", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId }),
+        });
+      } catch (err) {
+        // Silently handled by local state
       }
-    } catch (err) {
-      console.error("Error creating conversation:", err);
     }
   };
 
   const handleDeleteConversation = async (convId: string) => {
-    if (!userId) return;
-    try {
-      const res = await fetch(
-        `/api/stories?conversationId=${encodeURIComponent(convId)}&userId=${encodeURIComponent(userId)}`,
-        { method: "DELETE" }
-      );
-      if (!res.ok) return;
-      setConversations((prev) => prev.filter((c) => c.id !== convId));
+    setConversations((prev) => prev.filter((c) => c.id !== convId));
 
-      if (activeConversationId === convId) {
-        const remaining = conversations.filter((c) => c.id !== convId);
-        if (remaining.length > 0) {
-          setActiveConversationId(remaining[0].id);
-          loadMessages(remaining[0].id);
-        } else {
-          handleNewConversation();
-        }
+    if (activeConversationId === convId) {
+      const remaining = conversations.filter((c) => c.id !== convId);
+      if (remaining.length > 0) {
+        setActiveConversationId(remaining[0].id);
+        loadMessages(remaining[0].id);
+      } else {
+        handleNewConversation();
       }
-    } catch (err) {
-      console.error("Error deleting conversation:", err);
+    }
+
+    if (userId) {
+      try {
+        await fetch(
+          `/api/stories?conversationId=${encodeURIComponent(convId)}&userId=${encodeURIComponent(userId)}`,
+          { method: "DELETE" }
+        );
+      } catch (err) {
+        // Silently handled
+      }
     }
   };
 
@@ -175,10 +191,14 @@ export function ChatApp() {
     e.preventDefault();
     if (!tempNickname.trim()) return;
 
-    setUserNickname(tempNickname.trim());
-    setStudentId(tempStudentId.trim());
-    localStorage.setItem("story_user_nick", tempNickname.trim());
-    localStorage.setItem("story_user_studentid", tempStudentId.trim());
+    const cleanNick = tempNickname.trim();
+    const cleanId = tempStudentId.trim();
+
+    setUserNickname(cleanNick);
+    setStudentId(cleanId);
+    setProfile((prev) => ({ ...prev, name: cleanNick }));
+    localStorage.setItem("story_user_nick", cleanNick);
+    localStorage.setItem("story_user_studentid", cleanId);
     setShowWelcomeModal(false);
 
     try {
@@ -187,37 +207,48 @@ export function ChatApp() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId,
-          nickname: tempNickname.trim(),
-          studentId: tempStudentId.trim(),
+          nickname: cleanNick,
+          studentId: cleanId,
         }),
       });
 
       // Send initial greeting if messages is empty
-      if (activeConversationId && messages.length === 0) {
-        sendMessage(`สวัสดีครับลุง หนูชื่อเล่นว่า ${tempNickname.trim()}`);
+      if (messages.length === 0) {
+        sendMessage(`สวัสดีครับลุง หนูชื่อเล่นว่า ${cleanNick}`);
       }
     } catch (err) {
-      console.error("Error updating profile:", err);
+      // Local state is already set
     }
   };
 
   const sendMessage = async (textToSend: string) => {
     const text = textToSend.trim();
-    if (!text || loading || !activeConversationId) return;
+    if (!text || loading) return;
+
+    let convId = activeConversationId;
+    if (!convId) {
+      convId = `conv_${Date.now()}`;
+      setActiveConversationId(convId);
+      setConversations((prev) => [
+        { id: convId, title: "นิทานของฉัน", updatedAt: new Date().toISOString(), hasStory: false },
+        ...prev,
+      ]);
+    }
 
     setInputText("");
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
 
-    // Append User Message locally
+    // Append User Message locally immediately
     const userMsg: ChatMessageType = {
       id: `temp-${Date.now()}`,
       role: "user",
       content: text,
       createdAt: new Date().toISOString(),
     };
-    setMessages((prev) => [...prev, userMsg]);
+    const updatedMessages = [...messages, userMsg];
+    setMessages(updatedMessages);
     setLoading(true);
 
     try {
@@ -225,13 +256,17 @@ export function ChatApp() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          conversationId: activeConversationId,
+          conversationId: convId,
           message: text,
+          history: updatedMessages,
+          profile,
+          userNickname,
         }),
       });
 
       if (!res.ok) {
-        throw new Error("Chat request failed");
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Chat request failed");
       }
 
       const data: ChatResponse = await res.json();
@@ -248,7 +283,7 @@ export function ChatApp() {
 
       // Update Profile Tags
       if (data.profile) {
-        setProfile(data.profile);
+        setProfile((prev) => ({ ...prev, ...data.profile }));
         if (data.profile.name) {
           setUserNickname(data.profile.name);
           localStorage.setItem("story_user_nick", data.profile.name);
@@ -259,24 +294,26 @@ export function ChatApp() {
       if (data.title) {
         setConversations((prev) =>
           prev.map((c) =>
-            c.id === activeConversationId
+            c.id === convId
               ? { ...c, title: data.title, hasStory: data.isStory || c.hasStory }
               : c
           )
         );
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Send message error:", err);
       const errMsg: ChatMessageType = {
         id: `err-${Date.now()}`,
         role: "assistant",
-        content: "ขออภัยจ้ะ ลุงมีปัญหาเชื่อมต่อทางเทคนิคนิดหน่อย รบกวนหนูกดส่งใหม่อีกครั้งนะ 😊",
+        content: err?.message?.includes("ลุง")
+          ? err.message
+          : "ขออภัยจ้ะ ลุงมีปัญหาเชื่อมต่อทางเทคนิคนิดหน่อย รบกวนหนูกดส่งใหม่อีกครั้งนะ 😊",
         createdAt: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, errMsg]);
     } finally {
       setLoading(false);
-      textareaRef.current?.focus();
+      setTimeout(() => textareaRef.current?.focus(), 50);
     }
   };
 
