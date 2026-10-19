@@ -25,6 +25,8 @@ import {
   ArrowRight,
   LogOut,
   ChevronLeft,
+  AlertTriangle,
+  ExternalLink,
 } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import {
@@ -64,6 +66,7 @@ export default function TeacherDashboard() {
 
   const [stories, setStories] = useState<StoryItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [dbPaused, setDbPaused] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStep, setFilterStep] = useState<string>("ALL");
   const [selectedStory, setSelectedStory] = useState<StoryItem | null>(null);
@@ -110,11 +113,13 @@ export default function TeacherDashboard() {
     try {
       const res = await fetch("/api/stories?role=TEACHER");
       const data = await res.json();
+      setDbPaused(!!data.dbPaused);
       if (data.stories) {
         setStories(data.stories);
       }
     } catch (err) {
       console.error("Failed to load stories for teacher:", err);
+      setDbPaused(true);
     } finally {
       setLoading(false);
     }
@@ -376,6 +381,32 @@ export default function TeacherDashboard() {
             </div>
           </div>
         </div>
+
+        {/* Supabase Paused Alert Banner */}
+        {dbPaused && (
+          <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-950 shadow-sm animate-rise">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <div className="font-bold text-sm text-[#c2470a]">
+                  ฐานข้อมูล Supabase (ltbekaxccazsashfypib) กำลังอยู่ในสถานะหยุดทำงานชั่วคราว (Paused)
+                </div>
+                <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">
+                  เนื่องจากแพ็กเกจฟรีของ Supabase จะพักการทำงานอัตโนมัติหากไม่มีการใช้งานเกิน 7 วัน ทำให้ข้อมูลแชทใหม่ของนักเรียนยังไม่ถูกซิงก์เข้าสู่แดชบอร์ดกลางนี้
+                </p>
+              </div>
+            </div>
+            <a
+              href="https://supabase.com/dashboard/project/ltbekaxccazsashfypib"
+              target="_blank"
+              rel="noreferrer"
+              className="px-4 py-2.5 bg-[#f2711c] hover:bg-[#c2470a] text-white text-xs font-bold rounded-xl shrink-0 transition-colors shadow-sm flex items-center gap-1.5"
+            >
+              <span>กดเปิด Supabase เพื่อ Restore</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
+        )}
 
         {/* Filters and Search Bar */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#FFFDF9] border border-[#EADBC8] p-4 rounded-2xl shadow-xs">

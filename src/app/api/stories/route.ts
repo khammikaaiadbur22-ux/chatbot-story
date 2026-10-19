@@ -88,10 +88,10 @@ export async function GET(req: NextRequest) {
             },
           };
         });
-        return NextResponse.json({ stories });
+        return NextResponse.json({ stories, dbPaused: false });
       } catch (e) {
         console.warn("[api/stories] DB error in teacher view:", (e as Error)?.message);
-        return NextResponse.json({ stories: [] });
+        return NextResponse.json({ stories: [], dbPaused: true, dbError: (e as Error)?.message });
       }
     }
 
