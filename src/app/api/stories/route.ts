@@ -1,254 +1,155 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { cleanName, greetingFor, readStoredMeta } from "@/lib/story";
+import { STORY_MESSAGE_STEP, type ChatMessage, type ConversationSummary } from "@/lib/types";
 
+async function findOrCreateUser(userId: string) {
+  return prisma.user.upsert({
+    where: { username: userId },
+    update: {},
+    create: { username: userId, nickname: "", role: "STUDENT" },
+  });
+}
+
+async function createConversation(userId: string, nickname: string) {
+  return prisma.conversation.create({
+    data: {
+      userId,
+      title: nickname ? `นิทานของ${nickname}` : "นิทานเรื่องใหม่",
+      theme: "นิทานอีสป",
+      messages: { create: { role: "assistant", content: greetingFor(nickname), step: 1 } },
+    },
+  });
+}
+
+function toSummary(c: { id: string; title: string; updatedAt: Date; currentStep: number }): ConversationSummary {
+  return { id: c.id, title: c.title, updatedAt: c.updatedAt.toISOString(), hasStory: c.currentStep >= 2 };
+}
+
+/**
+ * GET ?userId=…          → profile + conversation list (creates the first conversation if needed)
+ * GET ?conversationId=…  → messages of one conversation
+ * GET ?role=TEACHER      → all stories for the teacher dashboard
+ */
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const userId = searchParams.get("userId");
-    const role = searchParams.get("role");
-    const conversationId = searchParams.get("conversationId");
+    const params = req.nextUrl.searchParams;
+    const conversationId = params.get("conversationId");
+    const userId = params.get("userId");
 
-    // Fetch specific conversation
     if (conversationId) {
       const conv = await prisma.conversation.findUnique({
         where: { id: conversationId },
-        include: {
-          user: true,
-          messages: {
-            orderBy: { createdAt: "asc" },
-          },
-        },
+        include: { messages: { orderBy: { createdAt: "asc" } } },
       });
+      if (!conv) return NextResponse.json({ error: "ไม่พบนิทานนี้" }, { status: 404 });
 
-      if (!conv) {
-        return NextResponse.json({ error: "Story not found" }, { status: 404 });
-      }
-
-      let parsedUserProfile = null;
-      let parsedFullStory = "";
-      try {
-        if (conv.plotSummary && conv.plotSummary.startsWith("{")) {
-          const parsed = JSON.parse(conv.plotSummary);
-          if (parsed.userProfile) parsedUserProfile = parsed.userProfile;
-          if (parsed.fullStory) parsedFullStory = parsed.fullStory;
-        }
-      } catch (e) {}
-
-      return NextResponse.json({
-        conversation: {
-          ...conv,
-          characters: conv.characters ? JSON.parse(conv.characters) : [],
-          backdrops: conv.backdrops ? JSON.parse(conv.backdrops) : [],
-          userProfile: parsedUserProfile,
-          fullStory: parsedFullStory,
-        },
-      });
+      const messages: ChatMessage[] = conv.messages.map((m) => ({
+        id: m.id,
+        role: m.role === "assistant" ? "assistant" : "user",
+        content: m.content,
+        isStory: m.step === STORY_MESSAGE_STEP,
+        createdAt: m.createdAt.toISOString(),
+      }));
+      return NextResponse.json({ conversation: { ...toSummary(conv), messages } });
     }
 
-    // Teacher View: Get all stories
-    if (role === "TEACHER") {
-      const allStories = await prisma.conversation.findMany({
-        include: {
-          user: true,
-          messages: {
-            orderBy: { createdAt: "desc" },
-            take: 1,
-          },
-        },
+    if (params.get("role") === "TEACHER") {
+      const all = await prisma.conversation.findMany({
+        include: { user: true, _count: { select: { messages: true } } },
         orderBy: { updatedAt: "desc" },
       });
-
-      const formatted = allStories.map((s) => {
-        let userProfile = null;
-        try {
-          if (s.plotSummary && s.plotSummary.startsWith("{")) {
-            const parsed = JSON.parse(s.plotSummary);
-            if (parsed.userProfile) userProfile = parsed.userProfile;
-          }
-        } catch (e) {}
-
+      const stories = all.map((s) => {
+        const meta = readStoredMeta(s.plotSummary);
         return {
-          ...s,
-          characters: s.characters ? JSON.parse(s.characters) : [],
-          backdrops: s.backdrops ? JSON.parse(s.backdrops) : [],
-          userProfile,
+          ...toSummary(s),
+          moralLesson: s.moralLesson || "",
+          fullStory: meta.fullStory,
+          profile: meta.profile,
+          messageCount: s._count.messages,
+          student: {
+            nickname: cleanName(s.user.nickname) || cleanName(meta.profile.name) || "ไม่ระบุชื่อ",
+            studentId: s.user.studentId || "",
+          },
         };
       });
-
-      return NextResponse.json({ stories: formatted });
+      return NextResponse.json({ stories });
     }
 
-    // Student View: Get or find existing story for user
     if (userId) {
-      // Find or create user
-      let user = await prisma.user.findUnique({
-        where: { username: userId },
-      });
-
-      if (!user) {
-        user = await prisma.user.create({
-          data: {
-            username: userId,
-            nickname: "",
-            role: "STUDENT",
-          },
-        });
-      }
-
-      let conv = await prisma.conversation.findFirst({
+      const user = await findOrCreateUser(userId);
+      let conversations = await prisma.conversation.findMany({
         where: { userId: user.id },
         orderBy: { updatedAt: "desc" },
-        include: {
-          user: true,
-          messages: {
-            orderBy: { createdAt: "asc" },
-          },
-        },
+        select: { id: true, title: true, updatedAt: true, currentStep: true },
       });
-
-      if (!conv) {
-        // Create initial story session
-        conv = await prisma.conversation.create({
-          data: {
-            userId: user.id,
-            title: "นิทานของฉัน",
-            currentStep: 1,
-            theme: "นิทานสร้างสรรค์",
-          },
-          include: {
-            user: true,
-            messages: true,
-          },
-        });
-
-        // Initial greeting: Natural, warm, asking for name first
-        const studentNick =
-          user.nickname &&
-          user.nickname !== "นักศึกษา ปวช. 1" &&
-          user.nickname !== "นักศึกษาคนเก่ง"
-            ? user.nickname
-            : "";
-
-        const initialContent = studentNick
-          ? `สวัสดีครับ${studentNick} 😊 ยินดีต้อนรับนะ! ลุงอยากรู้จัก${studentNick}มากขึ้นอีกนิด... เวลาว่าง${studentNick}ชอบทำอะไรที่สุด?`
-          : `สวัสดี! ดีใจที่ได้เจอเพื่อนนักสร้างเรื่องคนใหม่ 😊\n\nก่อนอื่นเลย ลุงขอรู้จักหน่อย... หนูอยากให้ลุงเรียกว่าอะไรดี?`;
-
-        const welcomeMessage = await prisma.message.create({
-          data: {
-            conversationId: conv.id,
-            role: "assistant",
-            content: initialContent,
-            step: 1,
-          },
-        });
-
-        conv.messages = [welcomeMessage];
+      if (conversations.length === 0) {
+        conversations = [await createConversation(user.id, cleanName(user.nickname))];
       }
-
-      let parsedUserProfile = null;
-      let parsedFullStory2 = "";
-      try {
-        if (conv.plotSummary && conv.plotSummary.startsWith("{")) {
-          const parsed = JSON.parse(conv.plotSummary);
-          if (parsed.userProfile) parsedUserProfile = parsed.userProfile;
-          if (parsed.fullStory) parsedFullStory2 = parsed.fullStory;
-        }
-      } catch (e) {}
-
       return NextResponse.json({
-        conversation: {
-          ...conv,
-          characters: conv.characters ? JSON.parse(conv.characters) : [],
-          backdrops: conv.backdrops ? JSON.parse(conv.backdrops) : [],
-          userProfile: parsedUserProfile,
-          fullStory: parsedFullStory2,
-        },
+        user: { nickname: cleanName(user.nickname), studentId: user.studentId || "" },
+        conversations: conversations.map(toSummary),
       });
     }
 
-    return NextResponse.json(
-      { error: "UserId or Teacher role required" },
-      { status: 400 }
-    );
-  } catch (error: any) {
-    console.error("Stories GET error:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch stories" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "ต้องระบุ userId หรือ conversationId" }, { status: 400 });
+  } catch (error) {
+    console.error("[api/stories GET]", error);
+    return NextResponse.json({ error: "โหลดข้อมูลไม่สำเร็จ" }, { status: 500 });
   }
 }
 
+/** POST { userId } → start a new conversation. */
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { userId, title = "นิทานเรื่องใหม่ของฉัน", theme = "นิทานสร้างสรรค์" } = body;
+    const { userId } = await req.json();
+    if (!userId) return NextResponse.json({ error: "ต้องระบุ userId" }, { status: 400 });
 
-    if (!userId) {
-      return NextResponse.json({ error: "userId is required" }, { status: 400 });
-    }
+    const user = await findOrCreateUser(userId);
+    const conv = await createConversation(user.id, cleanName(user.nickname));
+    return NextResponse.json({ conversation: toSummary(conv) });
+  } catch (error) {
+    console.error("[api/stories POST]", error);
+    return NextResponse.json({ error: "สร้างนิทานใหม่ไม่สำเร็จ" }, { status: 500 });
+  }
+}
 
-    let user = await prisma.user.findUnique({
+/** PATCH { userId, nickname, studentId } → update the learner profile. */
+export async function PATCH(req: NextRequest) {
+  try {
+    const { userId, nickname, studentId } = await req.json();
+    if (!userId) return NextResponse.json({ error: "ต้องระบุ userId" }, { status: 400 });
+
+    await findOrCreateUser(userId);
+    const user = await prisma.user.update({
       where: { username: userId },
+      data: {
+        nickname: String(nickname ?? "").trim().slice(0, 40),
+        studentId: String(studentId ?? "").trim().slice(0, 20) || null,
+      },
     });
+    return NextResponse.json({ user: { nickname: cleanName(user.nickname), studentId: user.studentId || "" } });
+  } catch (error) {
+    console.error("[api/stories PATCH]", error);
+    return NextResponse.json({ error: "บันทึกโปรไฟล์ไม่สำเร็จ" }, { status: 500 });
+  }
+}
 
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          username: userId,
-          nickname: "",
-          role: "STUDENT",
-        },
-      });
+/** DELETE ?conversationId=…&userId=… → remove one of the learner's conversations. */
+export async function DELETE(req: NextRequest) {
+  try {
+    const params = req.nextUrl.searchParams;
+    const conversationId = params.get("conversationId");
+    const userId = params.get("userId");
+    if (!conversationId || !userId) {
+      return NextResponse.json({ error: "ต้องระบุ conversationId และ userId" }, { status: 400 });
     }
-
-    const newConv = await prisma.conversation.create({
-      data: {
-        userId: user.id,
-        title,
-        theme,
-        currentStep: 1,
-      },
-      include: {
-        user: true,
-      },
+    const { count } = await prisma.conversation.deleteMany({
+      where: { id: conversationId, user: { username: userId } },
     });
-
-    const studentNick =
-      user.nickname &&
-      user.nickname !== "นักศึกษา ปวช. 1" &&
-      user.nickname !== "นักศึกษาคนเก่ง"
-        ? user.nickname
-        : "";
-
-    const initialContent = studentNick
-      ? `ยินดีต้อนรับกลับมาแต่งนิทานเรื่องใหม่ครับ${studentNick} 😊\nเวลาว่างตอนนี้ ${studentNick}กำลังสนใจหรือชอบทำอะไรที่สุด เล่าให้ลุงฟังหน่อยนะ!`
-      : `สวัสดี! ดีใจที่ได้เจอเพื่อนนักสร้างเรื่องคนใหม่ 😊\n\nก่อนอื่นเลย ลุงขอรู้จักหน่อย... หนูอยากให้ลุงเรียกว่าอะไรดี?`;
-
-    const welcomeMessage = await prisma.message.create({
-      data: {
-        conversationId: newConv.id,
-        role: "assistant",
-        content: initialContent,
-        step: 1,
-      },
-    });
-
-    return NextResponse.json({
-      conversation: {
-        ...newConv,
-        messages: [welcomeMessage],
-        characters: [],
-        backdrops: [],
-        scratchPlan: [],
-        userProfile: null,
-      },
-    });
-  } catch (error: any) {
-    console.error("Stories POST error:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to create new story" },
-      { status: 500 }
-    );
+    return NextResponse.json({ deleted: count });
+  } catch (error) {
+    console.error("[api/stories DELETE]", error);
+    return NextResponse.json({ error: "ลบไม่สำเร็จ" }, { status: 500 });
   }
 }

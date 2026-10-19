@@ -21,7 +21,6 @@ import {
   CheckCircle2,
   Activity,
 } from "lucide-react";
-import { StoryGenerationProgressDashboard } from "./StoryGenerationProgressDashboard";
 import { PdfExportButton } from "./PdfExportButton";
 
 export interface CharacterItem {
@@ -481,14 +480,27 @@ export function StoryBlueprintPanel({
           )}
 
           {activeTab === "progress" && (
-            <div className="h-full -m-4">
-              <StoryGenerationProgressDashboard
-                status={hasFullStory ? "completed" : "processing"}
-                studentName={resolvedName}
-                storyTitle={storyData.title}
-                onViewStory={() => setActiveTab("fullstory")}
-                onPrint={() => setShowPrintModal(true)}
-              />
+            <div className="p-6 text-center space-y-4">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-orange-100 text-[#f2711c] flex items-center justify-center font-bold">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <h3 className="font-bold text-base text-[#1c1714]">
+                {hasFullStory ? "สร้างนิทานอีสปฉบับสมบูรณ์แล้ว" : "กำลังพัฒนาเรื่องราว"}
+              </h3>
+              <p className="text-xs text-neutral-500 max-w-sm mx-auto">
+                {hasFullStory
+                  ? `เรื่อง "${storyData.title}" พร้อมสำหรับให้น้อง ${resolvedName} ใช้อ่านและนำไปพัฒนาต่อ`
+                  : "กำลังพูดคุยและรวบรวมข้อมูลเพื่อสร้างนิทาน..."}
+              </p>
+              {hasFullStory && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("fullstory")}
+                  className="px-4 py-2 bg-[#f2711c] text-white rounded-xl text-xs font-bold hover:bg-[#c2470a] transition-colors"
+                >
+                  อ่านนิทานฉบับเต็ม
+                </button>
+              )}
             </div>
           )}
         </div>

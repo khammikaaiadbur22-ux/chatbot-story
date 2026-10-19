@@ -1,145 +1,111 @@
 @import "tailwindcss";
 
-@layer base {
-  :root {
-    --background: #FCF9F2;
-    --foreground: #2C221E;
-    --parchment: #FFFDF9;
-    --parchment-soft: #F7EFE3;
-    --border-warm: #EADBC8;
-    
-    /* Scratch Color System */
-    --scratch-orange: #FF8C1A;
-    --scratch-amber: #FFAB19;
-    --scratch-blue: #4C97FF;
-    --scratch-purple: #9966FF;
-    --scratch-green: #0FBD8C;
-    --scratch-yellow: #FFBF00;
-    --scratch-pink: #FF6680;
-    --scratch-cyan: #4CBFE6;
+/* ─── Design tokens: orange · white · black ─── */
+@theme {
+  --font-sans: var(--font-prompt), ui-sans-serif, system-ui, sans-serif;
+
+  --color-ink: #1c1714;          /* primary text / dark surfaces */
+  --color-ink-2: #2a2420;        /* raised dark surface */
+  --color-ink-3: #3a322c;        /* hover on dark */
+  --color-muted: #6b5e55;        /* secondary text on light */
+  --color-cream: #fff7ef;        /* app background */
+  --color-paper: #ffffff;        /* light surfaces */
+  --color-brand: #f2711c;        /* orange accent */
+  --color-brand-deep: #c2470a;   /* orange for text / pressed */
+  --color-brand-soft: #ffe8d6;   /* tinted backgrounds */
+
+  --animate-rise: rise 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-blink: blink 1.2s infinite ease-in-out;
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to   { opacity: 1; transform: none; }
+  }
+  @keyframes blink {
+    0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+    40%           { transform: scale(1); opacity: 1; }
   }
 }
 
-body {
-  background-color: var(--background);
-  color: var(--foreground);
-  font-family: 'Prompt', 'Kanit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background-image: 
-    radial-gradient(#e6d8c3 0.75px, transparent 0.75px), 
-    radial-gradient(#f0e4d2 0.75px, #FCF9F2 0.75px);
-  background-size: 30px 30px;
-  background-position: 0 0, 15px 15px;
-  min-height: 100vh;
+/* ─── Claymorphism surfaces ─── */
+@utility clay {
+  background: var(--color-paper);
+  border-radius: 1.5rem;
+  box-shadow:
+    10px 12px 28px rgb(150 80 30 / 0.12),
+    -8px -8px 20px rgb(255 255 255 / 0.9),
+    inset -4px -4px 10px rgb(150 80 30 / 0.06),
+    inset 4px 4px 10px rgb(255 255 255 / 0.95);
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-track {
-  background: #F4EADB;
-  border-radius: 10px;
-}
-::-webkit-scrollbar-thumb {
-  background: #D9C3A5;
-  border-radius: 10px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #C4A987;
+@utility clay-sm {
+  background: var(--color-paper);
+  border-radius: 1rem;
+  box-shadow:
+    5px 6px 14px rgb(150 80 30 / 0.12),
+    -4px -4px 10px rgb(255 255 255 / 0.9),
+    inset -2px -2px 6px rgb(150 80 30 / 0.06),
+    inset 2px 2px 6px rgb(255 255 255 / 0.95);
 }
 
-/* Scratch Block Styles */
-.scratch-block {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.35rem 0.85rem;
-  border-radius: 0.75rem;
-  font-weight: 600;
-  font-size: 0.875rem;
-  color: #FFFFFF;
-  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2), 0 3px 6px rgba(0, 0, 0, 0.08);
-  user-select: none;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-  position: relative;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+@utility clay-brand {
+  color: #fff;
+  background: linear-gradient(145deg, #e8640f 0%, #c2470a 100%);
+  box-shadow:
+    6px 8px 18px rgb(194 71 10 / 0.35),
+    inset -3px -4px 8px rgb(110 35 0 / 0.3),
+    inset 3px 3px 8px rgb(255 255 255 / 0.3);
 }
 
-.scratch-block:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25), 0 5px 10px rgba(0, 0, 0, 0.12);
+@utility clay-dark {
+  background: var(--color-ink-2);
+  box-shadow:
+    inset -2px -2px 6px rgb(0 0 0 / 0.45),
+    inset 2px 2px 6px rgb(255 255 255 / 0.05);
 }
 
-.scratch-block-events {
-  background-color: #FFBF00;
-  border: 1px solid #E6AC00;
+@utility clay-inset {
+  background: #fff3e8;
+  box-shadow:
+    inset 4px 4px 10px rgb(150 80 30 / 0.12),
+    inset -4px -4px 10px rgb(255 255 255 / 0.95);
 }
 
-.scratch-block-motion {
-  background-color: #4C97FF;
-  border: 1px solid #3373CC;
+@utility clay-press {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+  &:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.04); }
+  &:active:not(:disabled) { transform: translateY(1px) scale(0.98); }
 }
 
-.scratch-block-looks {
-  background-color: #9966FF;
-  border: 1px solid #774DCB;
+@layer base {
+  html, body { height: 100%; }
+  body {
+    background: var(--color-cream);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--color-brand-soft); color: var(--color-brand-deep); }
+  :focus-visible { outline: 3px solid rgb(242 113 28 / 0.45); outline-offset: 2px; }
+
+  * { scrollbar-width: thin; scrollbar-color: #e4cbb5 transparent; }
+  .scroll-dark { scrollbar-color: #4a403a transparent; }
 }
 
-.scratch-block-sound {
-  background-color: #FF6680;
-  border: 1px solid #E64D67;
+/* ─── Chat text ─── */
+.prose-chat { line-height: 1.75; font-size: 0.975rem; }
+.prose-chat > * + * { margin-top: 0.7em; }
+.prose-chat h2 { font-size: 1.25rem; font-weight: 700; line-height: 1.4; color: var(--color-brand-deep); }
+.prose-chat h3 { font-size: 1.05rem; font-weight: 700; }
+.prose-chat ul { list-style: disc; padding-left: 1.25rem; }
+.prose-chat ol { list-style: decimal; padding-left: 1.25rem; }
+.prose-chat blockquote {
+  padding: 0.75rem 1rem;
+  border-radius: 1rem;
+  background: var(--color-brand-soft);
+  border-left: 4px solid var(--color-brand);
 }
+.prose-chat strong { font-weight: 600; }
 
-.scratch-block-control {
-  background-color: #FFAB19;
-  border: 1px solid #E69100;
-}
-
-.scratch-block-sensing {
-  background-color: #4CBFE6;
-  border: 1px solid #2E8EB0;
-}
-
-.scratch-block-operators {
-  background-color: #59C059;
-  border: 1px solid #389438;
-}
-
-.scratch-block-variables {
-  background-color: #FF8C1A;
-  border: 1px solid #DB6F00;
-}
-
-/* Warm Parchment Card Style */
-.storybook-card {
-  background: #FFFDF9;
-  border: 1.5px solid #EADBC8;
-  border-radius: 1.25rem;
-  box-shadow: 0 8px 24px -4px rgba(74, 51, 25, 0.06), 0 2px 6px -1px rgba(74, 51, 25, 0.04);
-}
-
-.storybook-card-warm {
-  background: linear-gradient(135deg, #FFFDF9 0%, #FFF5E6 100%);
-  border: 1.5px solid #F5DEBF;
-  box-shadow: 0 10px 30px -5px rgba(255, 140, 26, 0.1);
-}
-
-/* Animations */
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-6px); }
-}
-
-.animate-float {
-  animation: float 4s ease-in-out infinite;
-}
-
-@keyframes gentle-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.9; transform: scale(1.03); }
-}
-
-.animate-gentle-pulse {
-  animation: gentle-pulse 2.5s ease-in-out infinite;
+@media print {
+  body { background: #fff; }
 }

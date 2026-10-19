@@ -1,37 +1,30 @@
-import type { Metadata } from "next";
-import { Prompt, Fredoka } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Prompt } from "next/font/google";
 import "./globals.css";
-import { Providers } from "./providers";
 
-const promptFont = Prompt({
+const prompt = Prompt({
   weight: ["300", "400", "500", "600", "700"],
   subsets: ["thai", "latin"],
   variable: "--font-prompt",
   display: "swap",
 });
 
-const fredokaFont = Fredoka({
-  weight: ["400", "500", "600", "700"],
-  subsets: ["latin"],
-  variable: "--font-fredoka",
-  display: "swap",
-});
-
 export const metadata: Metadata = {
-  title: "ลุงเล่านิทาน - AI E-SOP Fable & Scratch Story Coach",
-  description: "ผู้ช่วยใจดีชวนน้องๆ สร้างสรรค์นิทานอีสปและแปลงไอเดียเป็นโครงงาน Scratch",
+  title: "ลุงนิทานยิ้มใส — แชทแต่งนิทานอีสปจากตัวตนของหนู",
+  description:
+    "คุยกับลุงนิทานยิ้มใส เล่าความชอบ นิสัย กิจวัตร และงานอดิเรกของหนู แล้วรับนิทานอีสปสั้น ๆ พร้อมข้อคิดที่แต่งขึ้นเพื่อหนูโดยเฉพาะ",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export const viewport: Viewport = {
+  themeColor: "#1c1714",
+  width: "device-width",
+  initialScale: 1,
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="th" className={`${promptFont.variable} ${fredokaFont.variable}`}>
-      <body className="min-h-screen text-[#2C221E] antialiased selection:bg-[#FF8C1A]/20 selection:text-[#FF8C1A]">
-        <Providers>{children}</Providers>
-      </body>
+    <html lang="th" className={prompt.variable}>
+      <body className="font-sans">{children}</body>
     </html>
   );
 }

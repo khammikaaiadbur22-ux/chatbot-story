@@ -1,9 +1,5 @@
-"use client";
+import { ChatApp } from "@/components/chat/ChatApp";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import StoryChatPage from "./chat/page";
-
-export default function RootPage() {
-  return <StoryChatPage />;
+export default function HomePage() {
+  return <ChatApp />;
 }
